@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cozy Movie Night - Watch Party</title>
+    
+    <!-- Google Fonts: Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Video.js CSS -->
+    <link href="https://vjs.zencdn.net/8.10.0/video-js.css" rel="stylesheet" />
+    
+    <!-- Phosphor Icons (Modern & Cute Icons) -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="background-animation"></div>
+    
+    <main class="app-container">
+        <!-- Status Badge -->
+        <div id="connectionStatus" class="status-badge disconnected">
+            <i class="ph-fill ph-plugs"></i> <span id="statusText">Bağlantı Bekleniyor...</span>
+        </div>
+
+        <header class="app-header">
+            <h1 class="logo">
+                <i class="ph-fill ph-heart-straight glow-icon"></i>
+                <span class="gradient-text">CozyMovie</span>
+            </h1>
+            <p class="subtitle" id="mainSubtitle">Birlikte izlemek için en tatlı yer 🍿</p>
+        </header>
+
+        <!-- Host Media Selector (Only visible to Host) -->
+        <div class="media-selector" id="mediaSelector">
+            <div id="inviteSection" class="invite-section">
+                <h3>Odanız Hazır!</h3>
+                <p>Sevgilinizin size bağlanması için bu linki gönderin:</p>
+                <div class="invite-link-wrapper">
+                    <input type="text" id="inviteLinkInput" readonly>
+                    <button id="copyLinkBtn"><i class="ph ph-copy"></i></button>
+                </div>
+            </div>
+
+            <div class="divider">
+                <span>VİDEO SEÇİMİ</span>
+            </div>
+
+            <div class="input-group">
+                <!-- Local File Input for WebTorrent -->
+                <label class="custom-file-upload">
+                    <input type="file" id="fileInput" accept="video/mp4, video/webm, video/ogg" />
+                    <i class="ph-fill ph-folder-notch-open"></i>
+                    <span>Bilgisayardan Seç (Anında Aktarım)</span>
+                </label>
+                
+                <div class="divider" style="width: 40%;">
+                    <span>veya</span>
+                </div>
+
+                <!-- URL Input -->
+                <div class="url-input-wrapper">
+                    <i class="ph ph-link"></i>
+                    <input type="text" id="urlInput" placeholder="Sunucunuzdaki veya internetteki video URL'si (.mp4, .m3u8)">
+                    <button id="loadUrlBtn"><i class="ph-fill ph-play-circle"></i></button>
+                </div>
+            </div>
+            
+            <!-- Webtorrent Info Box -->
+            <div class="ts-info-box" style="margin-top: 1.5rem;">
+                <i class="ph-fill ph-rocket-launch"></i>
+                <div class="ts-info-text">
+                    <strong>P2P Süper Akış (Yeni!)</strong>
+                    <p>Artık "Bilgisayardan Seç" diyerek kendi bilgisayarınızdaki (C: diski vb.) bir filmi seçtiğinizde, sistem bunu anında eş zamanlı akış (stream) olarak sevgilinizin bilgisayarına iletecek! Sizin yükleme beklemenize gerek kalmayacak.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Guest Waiting Screen -->
+        <div id="guestWaiting" class="guest-waiting hidden">
+            <i class="ph-duotone ph-popcorn" style="font-size: 4rem; color: var(--primary); margin-bottom: 1rem;"></i>
+            <h3 id="guestMessage">Bağlantı bekleniyor...</h3>
+            
+            <!-- Yeni Dosya Aktarım İlerleme Çubuğu -->
+            <div id="fileTransferContainer" class="hidden" style="margin-top: 2rem; width: 100%; max-width: 400px; text-align: center;">
+                <p id="transferText" style="margin-bottom: 0.5rem; font-weight: 500;">Film sevgilinizden alınıyor: %0</p>
+                <div style="width: 100%; height: 12px; background: rgba(255,255,255,0.1); border-radius: 10px; overflow: hidden; position: relative;">
+                    <div id="transferProgressBar" style="width: 0%; height: 100%; background: var(--gradient); transition: width 0.1s linear;"></div>
+                </div>
+                <p id="transferSpeedText" style="margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);"></p>
+            </div>
+        </div>
+
+        <!-- Player Container -->
+        <div class="player-container hidden" id="playerContainer">
+            <div class="ambient-light" id="ambientLight"></div>
+            <div class="video-wrapper">
+                <video-js id="mainPlayer" class="video-js vjs-theme-cozy vjs-big-play-centered" controls preload="auto" width="100%" height="100%">
+                </video-js>
+                
+                <!-- Native Player (for local P2P chunks) -->
+                <video id="nativePlayer" class="hidden" controls style="width:100%; height:100%; object-fit: contain;"></video>
+            </div>
+            
+            <!-- Seed Status for Host -->
+            <div id="hostSeedStatus" class="seed-status hidden">
+                <i class="ph-fill ph-upload-simple"></i>
+                <span id="hostSeedText">Sevgilinize Aktarılıyor...</span>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loadingOverlay" class="loading-overlay hidden">
+            <div class="spinner"></div>
+            <h3 style="margin-top: 1rem;">Video Hazırlanıyor...</h3>
+            <p style="color: var(--text-muted); margin-top: 0.5rem; max-width: 300px;">Büyük dosyaların işlenmesi birkaç saniye sürebilir, lütfen bekleyin.</p>
+        </div>
+
+        <!-- Chat UI -->
+        <div id="chatContainer" class="chat-container closed">
+            <div class="chat-header">
+                <h3><i class="ph-fill ph-chat-teardrop-text"></i> Sohbet</h3>
+                <button id="closeChatBtn" class="icon-btn"><i class="ph ph-x"></i></button>
+            </div>
+            <div id="chatMessages" class="chat-messages">
+                <div class="chat-msg system">Bağlantı bekleniyor...</div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chatInput" placeholder="Bir şeyler yaz..." disabled>
+                <button id="sendChatBtn" class="icon-btn primary" disabled><i class="ph-fill ph-paper-plane-right"></i></button>
+            </div>
+        </div>
+
+        <!-- Chat Toggle Button (Floating) -->
+        <button id="chatToggleBtn" class="chat-toggle-btn hidden">
+            <i class="ph-fill ph-chat-teardrop-text"></i>
+            <span id="chatUnreadBadge" class="chat-badge hidden"></span>
+        </button>
+    </main>
+
+    <!-- Scripts -->
+    <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
