@@ -322,11 +322,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatContainer.classList.contains('closed')) chatUnreadBadge.classList.remove('hidden');
             }
             else if (data.type === 'sync_controls') {
-                if (playerContainer.classList.contains('hidden')) {
-                    // Reveal player if hidden
-                    mediaSelector.classList.add('hidden');
-                    playerContainer.classList.remove('hidden');
-                }
                 setActiveCurrentTime(data.time);
                 if (!data.paused) playActiveVideo();
             }
