@@ -1,19 +1,7 @@
-﻿[
+[
   {
-    "title": "Film Adi 1",
-    "url": "https://STORAGE_ADI.blob.core.windows.net/movies/film1.mp4",
-    "poster": "https://STORAGE_ADI.blob.core.windows.net/posters/film1.jpg",
+    "title": "Deneme",
+    "url": "https://murat132580.blob.core.windows.net/movies/Kayıt 2026-08-03 155925.mp4",
     "duration": "1s 52dk"
-  },
-  {
-    "title": "Film Adi 2",
-    "url": "https://STORAGE_ADI.blob.core.windows.net/movies/film2.mp4",
-    "poster": "https://STORAGE_ADI.blob.core.windows.net/posters/film2.jpg",
-    "duration": "2s 10dk"
-  },
-  {
-    "title": "Postersiz Ornek",
-    "url": "https://STORAGE_ADI.blob.core.windows.net/movies/film3.mp4",
-    "duration": "1s 30dk"
   }
 ]
