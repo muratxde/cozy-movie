@@ -1,4 +1,11 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // --- Elements ---
+    const loginScreen = document.getElementById('loginScreen');
+    const usernameInput = document.getElementById('usernameInput');
+    const passwordInput = document.getElementById('passwordInput');
+    const loginBtn = document.getElementById('loginBtn');
+    const loginError = document.getElementById('loginError');
+    const appHeader = document.getElementById('appHeader');
     const connectionStatus = document.getElementById('connectionStatus');
     const mediaSelector = document.getElementById('mediaSelector');
     const guestWaiting = document.getElementById('guestWaiting');
@@ -6,8 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const urlInput = document.getElementById('urlInput');
     const loadUrlBtn = document.getElementById('loadUrlBtn');
     const fileInput = document.getElementById('fileInput');
-    const inviteLinkInput = document.getElementById('inviteLinkInput');
-    const copyLinkBtn = document.getElementById('copyLinkBtn');
     const ambientLight = document.getElementById('ambientLight');
     const statusText = document.getElementById('statusText');
     const guestMessage = document.getElementById('guestMessage');
@@ -18,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const transferText = document.getElementById('transferText');
     const transferSpeedText = document.getElementById('transferSpeedText');
     const hostSeedStatus = document.getElementById('hostSeedStatus');
+    
+    // Chat UI
     const chatToggleBtn = document.getElementById('chatToggleBtn');
     const chatContainer = document.getElementById('chatContainer');
     const closeChatBtn = document.getElementById('closeChatBtn');
@@ -30,11 +37,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let activePlayer = null; 
     let peer;
     let peerConnection;
-    let isHost = true;
     let isSyncing = false;
-    let currentVideoState = null; 
+    
+    let myId = "";
+    let partnerId = "";
+    let connectInterval;
     
     // File Transfer State
+    let amISendingFile = false;
     let currentFile = null;
     let currentFileOffset = 0;
     const CHUNK_SIZE = 64 * 1024; 
@@ -44,15 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let expectedMimeType = '';
     let transferStartTime = 0;
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const roomId = urlParams.get('oda');
-
-    if (roomId) {
-        isHost = false;
-        mediaSelector.classList.add('hidden');
-        guestWaiting.classList.remove('hidden');
-    }
-
+    // --- Video.js Init ---
     try {
         player = videojs('mainPlayer', { controls: true, autoplay: false, preload: 'auto', fluid: true, responsive: true });
         activePlayer = player;
@@ -64,28 +66,23 @@ document.addEventListener('DOMContentLoaded', () => {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     let animationFrameId;
 
-    function getActiveVideoElement() {
-        return activePlayer === nativePlayerEl ? nativePlayerEl : player.tech().el();
-    }
-    function getActiveCurrentTime() {
-        return activePlayer === nativePlayerEl ? nativePlayerEl.currentTime : player.currentTime();
-    }
-    function setActiveCurrentTime(time) {
-        if (activePlayer === nativePlayerEl) nativePlayerEl.currentTime = time;
-        else player.currentTime(time);
-    }
+    function getActiveVideoElement() { return activePlayer === nativePlayerEl ? nativePlayerEl : player.tech().el(); }
+    function getActiveCurrentTime() { return activePlayer === nativePlayerEl ? nativePlayerEl.currentTime : player.currentTime(); }
+    function setActiveCurrentTime(time) { if (activePlayer === nativePlayerEl) nativePlayerEl.currentTime = time; else player.currentTime(time); }
+    
     function playActiveVideo() {
         try {
             const p = activePlayer === nativePlayerEl ? nativePlayerEl.play() : player.play();
             if (p && p.catch) p.catch(e => console.log("Otomatik oynatma engellendi:", e));
         } catch (e) { console.error("Oynatma hatası:", e); }
     }
+    
     function pauseActiveVideo() {
         try {
-            if (activePlayer === nativePlayerEl) nativePlayerEl.pause();
-            else player.pause();
+            if (activePlayer === nativePlayerEl) nativePlayerEl.pause(); else player.pause();
         } catch (e) { console.error("Durdurma hatası:", e); }
     }
+    
     function isVideoPaused() {
         return activePlayer === nativePlayerEl ? nativePlayerEl.paused : player.paused();
     }
@@ -114,11 +111,13 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAmbientLight();
         if (!isSyncing && peerConnection) peerConnection.send({ type: 'play', time: getActiveCurrentTime() });
     }
+    
     function handlePauseEvent() {
         ambientLight.classList.remove('active');
         cancelAnimationFrame(animationFrameId);
         if (!isSyncing && peerConnection) peerConnection.send({ type: 'pause', time: getActiveCurrentTime() });
     }
+    
     function handleSeekEvent() {
         if (!isSyncing && peerConnection) peerConnection.send({ type: 'seek', time: getActiveCurrentTime() });
     }
@@ -135,6 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
     });
 
+    // --- Chat System ---
     function appendChatMessage(msg, type) {
         const div = document.createElement('div');
         div.className = `chat-msg ${type}`;
@@ -161,61 +161,116 @@ document.addEventListener('DOMContentLoaded', () => {
     sendChatBtn.addEventListener('click', sendChatMessage);
     chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
 
-    // --- PeerJS Setup ---
-    try {
-        peer = new Peer(null, {
-            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-        });
-    } catch(e) {
-        alert("Bağlantı motoru başlatılamadı!");
+    // --- Login Logic ---
+    function tryLogin() {
+        const user = usernameInput.value.trim().toLowerCase();
+        const pass = passwordInput.value.trim();
+        
+        if (pass !== "1305") {
+            loginError.classList.remove('hidden');
+            return;
+        }
+        
+        if (user === "murat") {
+            myId = "film-gecemiz-murat";
+            partnerId = "film-gecemiz-gulsum";
+        } else if (user === "gulsum" || user === "gülsüm") {
+            myId = "film-gecemiz-gulsum";
+            partnerId = "film-gecemiz-murat";
+        } else {
+            loginError.classList.remove('hidden');
+            return;
+        }
+        
+        // Success
+        loginScreen.classList.add('hidden');
+        appHeader.classList.remove('hidden');
+        connectionStatus.classList.remove('hidden');
+        mediaSelector.classList.remove('hidden');
+        loginError.classList.add('hidden');
+        
+        initPeer();
     }
 
-    peer.on('open', (id) => {
-        if (isHost) {
-            inviteLinkInput.value = `${window.location.href.split('?')[0]}?oda=${id}`;
-        } else {
-            connectToHost(roomId);
+    loginBtn.addEventListener('click', tryLogin);
+    passwordInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') tryLogin(); });
+    usernameInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') tryLogin(); });
+
+    // --- P2P Logic ---
+    function initPeer() {
+        try {
+            peer = new Peer(myId, { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+        } catch(e) {
+            alert("Bağlantı motoru başlatılamadı!");
+            return;
         }
-    });
-    
-    peer.on('error', (err) => {
-        if (!isHost) guestMessage.innerText = "Bağlantı Hatası: Oda bulunamadı veya Host sayfayı kapatmış olabilir. Lütfen yeni link isteyin.";
-    });
 
-    peer.on('connection', (conn) => {
-        if (!isHost) return;
-        peerConnection = conn;
-        setupConnectionEvents();
-    });
+        peer.on('open', (id) => {
+            console.log("Logged in as:", id);
+            attemptConnection();
+            connectInterval = setInterval(attemptConnection, 3000);
+        });
+        
+        peer.on('connection', (conn) => {
+            // Incoming connection from partner
+            if (conn.peer === partnerId) {
+                if (peerConnection && peerConnection.open) return; // Already connected
+                peerConnection = conn;
+                setupConnectionEvents();
+            }
+        });
+        
+        peer.on('error', (err) => {
+            console.log("PeerJS error:", err.type);
+            // Ignore peer-unavailable errors during polling
+        });
+    }
 
-    function connectToHost(hostId) {
-        peerConnection = peer.connect(hostId);
-        setupConnectionEvents();
+    function attemptConnection() {
+        if (peerConnection && peerConnection.open) {
+            clearInterval(connectInterval);
+            return;
+        }
+        
+        const conn = peer.connect(partnerId, { reliable: true });
+        conn.on('open', () => {
+            peerConnection = conn;
+            setupConnectionEvents();
+        });
+        conn.on('error', () => {
+            // Silently fail and retry
+        });
     }
 
     function setupConnectionEvents() {
+        clearInterval(connectInterval);
+        
         peerConnection.on('open', () => {
             connectionStatus.className = 'connection-status connected';
             statusText.innerText = '❤️ Sevgiliniz Bağlandı';
             chatToggleBtn.classList.remove('hidden');
             chatInput.disabled = false;
             sendChatBtn.disabled = false;
-            appendChatMessage("Bağlantı kuruldu!", 'system');
+            appendChatMessage("Bağlantı kuruldu! Birlikte film izlemeye hazırsınız.", 'system');
             
-            // Sync initial state instantly so guest can pause/play
+            // Sync controls state instantly
             peerConnection.send({ type: 'sync_controls', time: getActiveCurrentTime(), paused: isVideoPaused() });
-
-            if (isHost && currentFile) {
+            
+            if (amISendingFile && currentFile) {
                 startFileTransfer(currentFile);
-            } else if (isHost && currentVideoState) {
+            } else if (currentVideoState) {
                 peerConnection.send(currentVideoState);
             }
         });
+        
         peerConnection.on('data', handleSyncData);
+        
         peerConnection.on('close', () => {
             connectionStatus.className = 'connection-status disconnected';
-            statusText.innerText = 'Bağlantı Koptu!';
+            statusText.innerText = 'Bağlantı Koptu! Aranıyor...';
             peerConnection = null;
+            // Restart polling
+            connectInterval = setInterval(attemptConnection, 3000);
         });
     }
 
@@ -236,6 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startFileTransfer(file) {
+        amISendingFile = true;
         currentFile = file;
         currentFileOffset = 0;
         hostSeedStatus.classList.remove('hidden');
@@ -266,19 +322,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (chatContainer.classList.contains('closed')) chatUnreadBadge.classList.remove('hidden');
             }
             else if (data.type === 'sync_controls') {
-                // Reveal player container for guest immediately so they can pause/play!
-                guestWaiting.classList.add('hidden');
-                playerContainer.classList.remove('hidden');
+                if (playerContainer.classList.contains('hidden')) {
+                    // Reveal player if hidden
+                    mediaSelector.classList.add('hidden');
+                    playerContainer.classList.remove('hidden');
+                }
                 setActiveCurrentTime(data.time);
                 if (!data.paused) playActiveVideo();
             }
             else if (data.type === 'file_transfer_start') {
+                amISendingFile = false; // I am receiving
+                mediaSelector.classList.add('hidden');
                 switchToPlayer('native');
-                guestWaiting.classList.add('hidden');
                 playerContainer.classList.remove('hidden');
                 fileTransferContainer.classList.remove('hidden');
                 
-                // Allow guest to use controls even without video loaded
                 if (!nativePlayerEl.src) nativePlayerEl.src = ""; 
                 
                 expectedFileSize = data.size;
@@ -307,18 +365,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             else if (data.type === 'file_transfer_ack') {
-                if (isHost) sendNextChunk();
+                if (amISendingFile) sendNextChunk();
             }
             else if (data.type === 'file_transfer_complete') {
-                if (isHost) {
+                if (amISendingFile) {
                     document.getElementById('hostSeedText').innerText = `Aktarım bitti!`;
-                    setTimeout(() => peerConnection.send({ type: isVideoPaused() ? 'seek' : 'play', time: getActiveCurrentTime() }), 1000);
+                    setTimeout(() => {
+                        amISendingFile = false;
+                        hostSeedStatus.classList.add('hidden');
+                        peerConnection.send({ type: isVideoPaused() ? 'seek' : 'play', time: getActiveCurrentTime() });
+                    }, 2000);
                 }
             }
             else if (data.type === 'load_url') {
+                mediaSelector.classList.add('hidden');
                 switchToPlayer('native');
                 nativePlayerEl.src = data.url;
-                guestWaiting.classList.add('hidden');
                 playerContainer.classList.remove('hidden');
                 playActiveVideo();
             }
@@ -337,16 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setTimeout(() => { isSyncing = false; }, 300);
     }
 
-    if (copyLinkBtn) {
-        copyLinkBtn.addEventListener('click', () => {
-            inviteLinkInput.select();
-            document.execCommand('copy');
-            const icon = copyLinkBtn.querySelector('i');
-            icon.classList.remove('ph-copy'); icon.classList.add('ph-check');
-            setTimeout(() => { icon.classList.remove('ph-check'); icon.classList.add('ph-copy'); }, 2000);
-        });
-    }
-
     if (fileInput) {
         fileInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -356,8 +408,12 @@ document.addEventListener('DOMContentLoaded', () => {
             switchToPlayer('native');
             nativePlayerEl.src = URL.createObjectURL(file);
             playActiveVideo();
-            if (peerConnection && peerConnection.open) startFileTransfer(file);
-            else currentFile = file; // Will transfer when guest connects
+            if (peerConnection && peerConnection.open) {
+                startFileTransfer(file);
+            } else {
+                currentFile = file;
+                alert("Sevgiliniz bağlandığında dosya aktarımı otomatik başlayacak!");
+            }
             fileInput.value = ''; 
         });
     }
@@ -371,9 +427,14 @@ document.addEventListener('DOMContentLoaded', () => {
             switchToPlayer('native');
             nativePlayerEl.src = url;
             playActiveVideo();
+            
             currentVideoState = { type: 'load_url', url: url };
-            currentFile = null; 
-            if (peerConnection && peerConnection.open) peerConnection.send(currentVideoState);
+            
+            if (peerConnection && peerConnection.open) {
+                peerConnection.send(currentVideoState);
+            } else {
+                alert("Sevgiliniz bağlandığında URL otomatik olarak onda da açılacak.");
+            }
         });
     }
 });

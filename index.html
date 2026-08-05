@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cozy Movie Night - Watch Party</title>
+    <title>Film Gecemiz</title>
     
     <!-- Google Fonts: Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -24,28 +24,42 @@
     
     <main class="app-container">
         <!-- Status Badge -->
-        <div id="connectionStatus" class="status-badge disconnected">
-            <i class="ph-fill ph-plugs"></i> <span id="statusText">Bağlantı Bekleniyor...</span>
-        </div>
+            <div id="connectionStatus" class="status-badge disconnected hidden">
+                <i class="ph-fill ph-plugs"></i> <span id="statusText">Bağlantı Bekleniyor...</span>
+            </div>
+    
+            <header class="app-header hidden" id="appHeader">
+                <h1 class="logo">
+                    <i class="ph-fill ph-heart-straight glow-icon"></i>
+                    <span class="gradient-text">Film Gecemiz</span>
+                </h1>
+                <p class="subtitle" id="mainSubtitle">Sadece ikimize özel sinema salonu 🎬💕</p>
+            </header>
 
-        <header class="app-header">
-            <h1 class="logo">
-                <i class="ph-fill ph-heart-straight glow-icon"></i>
-                <span class="gradient-text">CozyMovie</span>
-            </h1>
-            <p class="subtitle" id="mainSubtitle">Birlikte izlemek için en tatlı yer 🍿</p>
-        </header>
-
-        <!-- Host Media Selector (Only visible to Host) -->
-        <div class="media-selector" id="mediaSelector">
-            <div id="inviteSection" class="invite-section">
-                <h3>Odanız Hazır!</h3>
-                <p>Sevgilinizin size bağlanması için bu linki gönderin:</p>
-                <div class="invite-link-wrapper">
-                    <input type="text" id="inviteLinkInput" readonly>
-                    <button id="copyLinkBtn"><i class="ph ph-copy"></i></button>
+            <!-- Login Screen -->
+            <div id="loginScreen" class="login-screen">
+                <div class="login-card">
+                    <i class="ph-fill ph-heart-straight glow-icon" style="font-size: 3.5rem; margin-bottom: 1rem; color: var(--primary);"></i>
+                    <h2 style="margin-bottom: 0.5rem;">Hoş Geldiniz</h2>
+                    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Sadece ikinize özel sinema salonu.</p>
+                    <div class="login-inputs">
+                        <div class="url-input-wrapper">
+                            <i class="ph ph-user"></i>
+                            <input type="text" id="usernameInput" placeholder="Kullanıcı Adı (murat veya gulsum)">
+                        </div>
+                        <div class="url-input-wrapper" style="margin-top: 1rem;">
+                            <i class="ph ph-lock"></i>
+                            <input type="password" id="passwordInput" placeholder="Şifre">
+                        </div>
+                        <button id="loginBtn" class="primary-btn" style="width: 100%; margin-top: 1.5rem; padding: 1rem; border-radius: 12px; font-weight: 600; display: flex; justify-content: center; align-items: center; gap: 0.5rem; background: var(--gradient); color: white; border: none; cursor: pointer; font-size: 1.1rem;">
+                            İçeri Gir <i class="ph-bold ph-arrow-right"></i>
+                        </button>
+                        <p id="loginError" class="hidden" style="color: #ff4757; margin-top: 1rem; text-align: center; font-size: 0.9rem;">Hatalı kullanıcı adı veya şifre!</p>
+                    </div>
                 </div>
             </div>
+
+        <div class="media-selector hidden" id="mediaSelector">
 
             <div class="divider">
                 <span>VİDEO SEÇİMİ</span>
