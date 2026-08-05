@@ -55,13 +55,21 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFile = null;
     let currentVideoState = null;
     let currentFileOffset = 0;
-    const CHUNK_SIZE = 256 * 1024; // 256 KB chunks for faster transfer
+    const CHUNK_SIZE = 128 * 1024; // 128 KB chunks for balanced speed/safety
     let receivedChunks = [];
     let expectedFileSize = 0;
     let expectedFileName = '';
     let receivedSize = 0;
     let expectedMimeType = '';
     let transferStartTime = 0;
+    let lastUITime = 0;
+
+    // Helper for formatting sizes
+    function formatBytes(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024, sizes = ['B', 'KB', 'MB', 'GB', 'TB'], i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
 
     // --- Video.js Init ---
     try {
@@ -365,6 +373,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentFile = file;
         currentFileOffset = 0;
         hostSeedStatus.classList.remove('hidden');
+        transferStartTime = Date.now();
+        lastUITime = 0;
         document.getElementById('hostSeedText').innerText = "Aktarım Başlıyor... (İnternet hızınıza göre 5-15 dk sürebilir)";
         peerConnection.send({ type: 'file_transfer_start', name: file.name, size: file.size, mimeType: file.type || 'video/mp4' });
         reactionsBar.classList.remove('hidden');
@@ -386,10 +396,17 @@ document.addEventListener('DOMContentLoaded', () => {
             peerConnection.send({ type: 'file_transfer_chunk', data: arrayBuf });
             currentFileOffset += CHUNK_SIZE;
             
-            // Update UI occasionally
-            if (currentFileOffset % (CHUNK_SIZE * 20) === 0 || currentFileOffset >= currentFile.size) {
+            // Update UI occasionally based on time, not strict chunks
+            const now = Date.now();
+            if (now - lastUITime > 500 || currentFileOffset >= currentFile.size) {
                 const progress = Math.min(100, (currentFileOffset / currentFile.size) * 100);
-                document.getElementById('hostSeedText').innerText = `Aktarım: %${progress.toFixed(1)}`;
+                const elapsed = (now - transferStartTime) / 1000;
+                const speed = currentFileOffset / elapsed;
+                const remainingBytes = currentFile.size - currentFileOffset;
+                const remainingTimeSec = speed > 0 ? remainingBytes / speed : 0;
+                
+                document.getElementById('hostSeedText').innerText = `Aktarım: %${progress.toFixed(1)} | Hız: ${formatBytes(speed)}/sn | Kalan: ${Math.round(remainingTimeSec)} sn`;
+                lastUITime = now;
             }
         }
     }
@@ -428,6 +445,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 receivedChunks = [];
                 receivedSize = 0;
                 transferStartTime = Date.now();
+                lastUITime = 0;
                 
                 transferText.innerText = `Film karşıdan indiriliyor... Lütfen bekleyin.`;
                 peerConnection.send({ type: 'file_transfer_ack' }); // Start signal
@@ -437,10 +455,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 receivedChunks.push(data.data);
                 receivedSize += byteLength;
                 
-                if (receivedSize % (CHUNK_SIZE * 20) === 0 || receivedSize >= expectedFileSize) {
+                const now = Date.now();
+                if (now - lastUITime > 500 || receivedSize >= expectedFileSize) {
                     const progress = Math.min(100, (receivedSize / expectedFileSize) * 100);
+                    const elapsed = (now - transferStartTime) / 1000;
+                    const speed = receivedSize / elapsed;
+                    const remainingBytes = expectedFileSize - receivedSize;
+                    const remainingTimeSec = speed > 0 ? remainingBytes / speed : 0;
+                    
                     transferProgressBar.style.width = `${progress}%`;
-                    transferText.innerText = `Film yükleniyor: %${progress.toFixed(1)}`;
+                    transferText.innerText = `İndiriliyor: %${progress.toFixed(1)} (${formatBytes(receivedSize)} / ${formatBytes(expectedFileSize)})`;
+                    if (transferSpeedText) transferSpeedText.innerText = `Hız: ${formatBytes(speed)}/sn | Kalan: ${Math.round(remainingTimeSec)} sn`;
+                    lastUITime = now;
                 }
                 
                 if (receivedSize >= expectedFileSize) {
@@ -456,6 +482,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     nativePlayerEl.src = URL.createObjectURL(blob);
+                    
+                    // Alıcının siyah/gri ekranda kalmaması için video yüklendiğinde oynatmaya başla
+                    nativePlayerEl.oncanplay = () => {
+                        playActiveVideo();
+                        nativePlayerEl.oncanplay = null;
+                    };
+
                     peerConnection.send({ type: 'file_transfer_complete' });
                     receivedChunks = []; 
                 }
