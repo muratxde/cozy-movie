@@ -188,6 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     nativePlayerEl.addEventListener('waiting', showLoading);
     nativePlayerEl.addEventListener('playing', hideLoading);
     nativePlayerEl.addEventListener('canplay', hideLoading);
+    nativePlayerEl.addEventListener('seeked', hideLoading); // İleri sarma bitince gizle
     nativePlayerEl.addEventListener('error', (e) => {
         hideLoading();
         alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
