@@ -174,7 +174,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function showLoading() {
-        if (loadingOverlay) {
+        // Sadece video izleme ekranındayken yükleme ekranını göster (arka planda çalışırken gösterme)
+        if (loadingOverlay && !playerContainer.classList.contains('hidden')) {
             loadingOverlay.classList.remove('hidden');
             if (bufferPercentText) bufferPercentText.innerText = "%0 Yüklendi";
         }
@@ -192,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
         alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
     });
     nativePlayerEl.addEventListener('progress', () => {
-        if (nativePlayerEl.buffered.length > 0 && nativePlayerEl.duration > 0) {
+        if (nativePlayerEl.buffered.length > 0 && nativePlayerEl.duration > 0 && !isNaN(nativePlayerEl.duration)) {
             let maxBuffered = 0;
             // Get the furthest buffered range
             for (let i = 0; i < nativePlayerEl.buffered.length; i++) {
