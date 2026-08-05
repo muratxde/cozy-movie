@@ -255,11 +255,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!url || !movieGrid) return;
         localStorage.setItem('catalog_url', url);
         movieGrid.innerHTML = '<div class="loading-catalog"><div class="mini-spinner"></div><span>Kütüphane yükleniyor...</span></div>';
-        fetch(url)
-            .then(r => { if (!r.ok) throw new Error('Sunucu hatası: ' + r.status); return r.json(); })
-            .then(movies => renderMovieCards(movies))
-            .catch(err => {
-                movieGrid.innerHTML = '<div class="empty-library"><i class="ph-fill ph-warning-circle" style="color:#ff4757;opacity:1;"></i><p>Kütüphane yüklenemedi.</p></div>';
+        // Cache-bust ile fetch et (Azure bazen eski veriyi cache'ler)
+        var fetchUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
+        fetch(fetchUrl)
+            .then(function(r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status + ' - URL doğru mu?');
+                return r.json();
+            })
+            .then(function(movies) { renderMovieCards(movies); })
+            .catch(function(err) {
+                console.error('Catalog fetch hatası:', err);
+                movieGrid.innerHTML = '<div class="empty-library"><i class="ph-fill ph-warning-circle" style="color:#ff4757;opacity:1;"></i>' +
+                    '<p style="color:#ff4757;opacity:1;">Yüklenemedi: ' + err.message + '</p>' +
+                    '<p style="font-size:0.8rem;margin-top:0.5rem;">CORS ayarı tamam mı? URL doğru mu?</p></div>';
             });
     }
 
@@ -293,16 +301,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function selectFromLibrary(movie, cardEl) {
-        document.querySelectorAll('.movie-card').forEach(c => c.classList.remove('selected'));
+        document.querySelectorAll('.movie-card').forEach(function(c) { c.classList.remove('selected'); });
         cardEl.classList.add('selected');
         mediaSelector.classList.add('hidden');
         playerContainer.classList.remove('hidden');
         switchToPlayer('native');
-        nativePlayerEl.src = movie.url;
+        // URL'deki Türkçe karakter ve boşlukları encode et
+        var encodedUrl = movie.url.split('/').map(function(part, i) {
+            return i < 3 ? part : encodeURIComponent(decodeURIComponent(part));
+        }).join('/');
+        nativePlayerEl.src = encodedUrl;
         playActiveVideo();
-        currentVideoState = { type: 'load_url', url: movie.url };
+        currentVideoState = { type: 'load_url', url: encodedUrl };
         if (typeof localforage !== 'undefined') {
-            localforage.setItem('movie_state', { type: 'url', url: movie.url });
+            localforage.setItem('movie_state', { type: 'url', url: encodedUrl });
         }
         if (peerConnection && peerConnection.open) {
             peerConnection.send(currentVideoState);

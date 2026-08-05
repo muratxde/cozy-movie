@@ -64,16 +64,26 @@
             <!-- Film Kütüphanesi (Azure Blob Storage) -->
             <div class="library-section">
                 <div class="library-header">
-                    <h3><i class="ph-fill ph-film-slate"></i> Film Kütüphanesi</h3>
+                    <div class="library-title-group">
+                        <i class="ph-fill ph-film-slate library-title-icon"></i>
+                        <div>
+                            <h3>Film Kütüphanesi</h3>
+                            <p class="library-subtitle">Azure'dan direkt stream 🚀</p>
+                        </div>
+                    </div>
                     <div class="catalog-input-wrapper">
-                        <input type="text" id="catalogUrlInput" placeholder="catalog.json Azure Blob URL'si...">
-                        <button id="loadCatalogBtn" title="Kütüphaneyi Yükle"><i class="ph-fill ph-arrow-clockwise"></i></button>
+                        <i class="ph ph-link-simple" style="color: var(--text-muted); font-size: 1rem; flex-shrink:0;"></i>
+                        <input type="text" id="catalogUrlInput" placeholder="catalog.json URL'sini yapıştır...">
+                        <button id="loadCatalogBtn" title="Yükle">
+                            <i class="ph-fill ph-magnifying-glass"></i>
+                            <span>Yükle</span>
+                        </button>
                     </div>
                 </div>
                 <div id="movieGrid" class="movie-grid">
                     <div class="empty-library">
                         <i class="ph-duotone ph-film-reel"></i>
-                        <p>Yukarıya catalog.json URL'ni girerek film kütüphanenizi yükleyin</p>
+                        <p>catalog.json URL'sini yukarıya yapıştırıp<br><strong>Yükle</strong> butonuna bas</p>
                     </div>
                 </div>
             </div>
