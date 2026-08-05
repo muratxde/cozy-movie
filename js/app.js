@@ -256,7 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Sync controls state instantly
             peerConnection.send({ type: 'sync_controls', time: getActiveCurrentTime(), paused: isVideoPaused() });
             
-            if (amISendingFile && currentFile) {
+            if (currentFile) {
                 startFileTransfer(currentFile);
             } else if (currentVideoState) {
                 peerConnection.send(currentVideoState);
@@ -412,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 startFileTransfer(file);
             } else {
                 currentFile = file;
+                amISendingFile = true;
                 alert("Sevgiliniz bağlandığında dosya aktarımı otomatik başlayacak!");
             }
             fileInput.value = ''; 
