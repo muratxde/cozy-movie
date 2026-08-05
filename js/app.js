@@ -51,12 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let partnerId = "";
     let connectInterval;
     
-    // File Transfer & State
     let amISendingFile = false;
     let currentFile = null;
     let currentVideoState = null;
     let currentFileOffset = 0;
-    const CHUNK_SIZE = 64 * 1024; 
+    const CHUNK_SIZE = 256 * 1024; // 256 KB chunks for faster transfer
     let receivedChunks = [];
     let expectedFileSize = 0;
     let expectedFileName = '';
@@ -116,20 +115,27 @@ document.addEventListener('DOMContentLoaded', () => {
         animationFrameId = requestAnimationFrame(updateAmbientLight);
     }
 
+    let ignoreNextPlay = false;
+    let ignoreNextPause = false;
+    let ignoreNextSeek = false;
+
     function handlePlayEvent() {
         ambientLight.classList.add('active');
         updateAmbientLight();
-        if (!isSyncing && peerConnection) peerConnection.send({ type: 'play', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
+        if (ignoreNextPlay) { ignoreNextPlay = false; return; }
+        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'play', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
     }
     
     function handlePauseEvent() {
         ambientLight.classList.remove('active');
         cancelAnimationFrame(animationFrameId);
-        if (!isSyncing && peerConnection) peerConnection.send({ type: 'pause', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
+        if (ignoreNextPause) { ignoreNextPause = false; return; }
+        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'pause', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
     }
     
     function handleSeekEvent() {
-        if (!isSyncing && peerConnection) peerConnection.send({ type: 'seek', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
+        if (ignoreNextSeek) { ignoreNextSeek = false; return; }
+        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'seek', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
     }
 
     if (player) {
@@ -359,7 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         currentFile = file;
         currentFileOffset = 0;
         hostSeedStatus.classList.remove('hidden');
-        document.getElementById('hostSeedText').innerText = "Aktarım Başlıyor...";
+        document.getElementById('hostSeedText').innerText = "Aktarım Başlıyor... (İnternet hızınıza göre 5-15 dk sürebilir)";
         peerConnection.send({ type: 'file_transfer_start', name: file.name, size: file.size, mimeType: file.type || 'video/mp4' });
         reactionsBar.classList.remove('hidden');
     }
@@ -422,6 +428,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 receivedChunks = [];
                 receivedSize = 0;
                 transferStartTime = Date.now();
+                
+                transferText.innerText = `Film karşıdan indiriliyor... Lütfen bekleyin.`;
                 peerConnection.send({ type: 'file_transfer_ack' }); // Start signal
             }
             else if (data.type === 'file_transfer_chunk') {
@@ -482,17 +490,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearMovieState();
             }
             else if (data.type === 'play') {
-                if (Math.abs(getActiveCurrentTime() - data.time) > 1) setActiveCurrentTime(data.time);
+                if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
+                    ignoreNextSeek = true;
+                    setActiveCurrentTime(data.time);
+                }
+                ignoreNextPlay = true;
                 playActiveVideo();
                 if (data.user) showToast(data.user + ' filmi başlattı ▶️');
             }
             else if (data.type === 'pause') {
-                setActiveCurrentTime(data.time);
+                if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
+                    ignoreNextSeek = true;
+                    setActiveCurrentTime(data.time);
+                }
+                ignoreNextPause = true;
                 pauseActiveVideo();
                 if (data.user) showToast(data.user + ' filmi durdurdu ⏸️');
             }
             else if (data.type === 'seek') {
-                setActiveCurrentTime(data.time);
+                if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
+                    ignoreNextSeek = true;
+                    setActiveCurrentTime(data.time);
+                }
                 if (data.user) showToast(data.user + ' filmi sardı ⏩');
             }
             else if (data.type === 'reaction') {
@@ -577,7 +596,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.reaction-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const emoji = e.target.getAttribute('data-emoji');
+            const targetBtn = e.target.closest('.reaction-btn');
+            if (!targetBtn) return;
+            const emoji = targetBtn.getAttribute('data-emoji');
             createFloatingEmoji(emoji, true);
             if (peerConnection && peerConnection.open) {
                 peerConnection.send({ type: 'reaction', emoji: emoji });
