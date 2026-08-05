@@ -17,7 +17,7 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2">
 </head>
 <body>
     <div class="background-animation"></div>
@@ -112,7 +112,12 @@
 
         <!-- Player Container -->
         <div class="player-container hidden" id="playerContainer">
-            <div class="ambient-light" id="ambientLight"></div>
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                <button id="closeMovieBtn" class="primary-btn" style="background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.5); padding: 0.5rem 1rem; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="ph-bold ph-x"></i> Filmi Kapat / Yeni Seç
+                </button>
+            </div>
+            <div id="ambientLight" class="ambient-light"></div>
             <div class="video-wrapper">
                 <video-js id="mainPlayer" class="video-js vjs-theme-cozy vjs-big-play-centered" controls preload="auto" width="100%" height="100%">
                 </video-js>
@@ -160,6 +165,7 @@
     <!-- Scripts -->
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    <script src="js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
+    <script src="js/app.js?v=3"></script>
 </body>
 </html>

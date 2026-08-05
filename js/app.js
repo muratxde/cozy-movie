@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const transferText = document.getElementById('transferText');
     const transferSpeedText = document.getElementById('transferSpeedText');
     const hostSeedStatus = document.getElementById('hostSeedStatus');
+    const closeMovieBtn = document.getElementById('closeMovieBtn');
     
     // Chat UI
     const chatToggleBtn = document.getElementById('chatToggleBtn');
@@ -43,13 +44,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let partnerId = "";
     let connectInterval;
     
-    // File Transfer State
+    // File Transfer & State
     let amISendingFile = false;
     let currentFile = null;
+    let currentVideoState = null;
     let currentFileOffset = 0;
     const CHUNK_SIZE = 64 * 1024; 
     let receivedChunks = [];
     let expectedFileSize = 0;
+    let expectedFileName = '';
     let receivedSize = 0;
     let expectedMimeType = '';
     let transferStartTime = 0;
@@ -161,6 +164,49 @@ document.addEventListener('DOMContentLoaded', () => {
     sendChatBtn.addEventListener('click', sendChatMessage);
     chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
 
+    // --- State Persistence (IndexedDB) ---
+    function restoreMovieState() {
+        if (typeof localforage === 'undefined') return;
+        localforage.getItem('movie_state').then(state => {
+            if (state) {
+                console.log("Önceki film geri yüklendi:", state.type);
+                mediaSelector.classList.add('hidden');
+                playerContainer.classList.remove('hidden');
+                switchToPlayer('native');
+                
+                if (state.type === 'file') {
+                    currentFile = state.blob;
+                    currentFile.name = state.name;
+                    currentFile.size = state.size; // preserve original size
+                    nativePlayerEl.src = URL.createObjectURL(currentFile);
+                } else if (state.type === 'url') {
+                    currentVideoState = { type: 'load_url', url: state.url };
+                    nativePlayerEl.src = state.url;
+                }
+            }
+        }).catch(e => console.error("IndexedDB okuma hatası:", e));
+    }
+
+    function clearMovieState() {
+        if (typeof localforage !== 'undefined') localforage.removeItem('movie_state');
+        currentFile = null;
+        currentVideoState = null;
+        nativePlayerEl.src = "";
+        if (player) player.pause();
+        nativePlayerEl.pause();
+        playerContainer.classList.add('hidden');
+        mediaSelector.classList.remove('hidden');
+    }
+
+    if (closeMovieBtn) {
+        closeMovieBtn.addEventListener('click', () => {
+            clearMovieState();
+            if (peerConnection && peerConnection.open) {
+                peerConnection.send({ type: 'close_movie' });
+            }
+        });
+    }
+
     // --- Login Logic ---
     function tryLogin() {
         const user = usernameInput.value.trim().toLowerCase();
@@ -189,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
         mediaSelector.classList.remove('hidden');
         loginError.classList.add('hidden');
         
+        restoreMovieState();
         initPeer();
     }
 
@@ -222,7 +269,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         peer.on('error', (err) => {
             console.log("PeerJS error:", err.type);
-            // Ignore peer-unavailable errors during polling
         });
     }
 
@@ -326,6 +372,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data.paused) playActiveVideo();
             }
             else if (data.type === 'file_transfer_start') {
+                // Check if we ALREADY have this exact file loaded from IndexedDB!
+                if (currentFile && currentFile.name === data.name && currentFile.size === data.size) {
+                    console.log("Bu dosya zaten bende var! İndirmeye gerek yok.");
+                    peerConnection.send({ type: 'file_transfer_complete' });
+                    return;
+                }
+                
                 amISendingFile = false; // I am receiving
                 mediaSelector.classList.add('hidden');
                 switchToPlayer('native');
@@ -335,6 +388,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!nativePlayerEl.src) nativePlayerEl.src = ""; 
                 
                 expectedFileSize = data.size;
+                expectedFileName = data.name;
                 expectedMimeType = data.mimeType;
                 receivedChunks = [];
                 receivedSize = 0;
@@ -352,6 +406,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (receivedSize >= expectedFileSize) {
                     fileTransferContainer.classList.add('hidden');
                     const blob = new Blob(receivedChunks, { type: expectedMimeType });
+                    currentFile = blob;
+                    currentFile.name = expectedFileName;
+                    currentFile.size = expectedFileSize;
+                    
+                    // Save to IndexedDB
+                    if (typeof localforage !== 'undefined') {
+                        localforage.setItem('movie_state', { type: 'file', blob: blob, name: expectedFileName, size: expectedFileSize });
+                    }
+                    
                     nativePlayerEl.src = URL.createObjectURL(blob);
                     peerConnection.send({ type: 'file_transfer_complete' });
                     receivedChunks = []; 
@@ -377,7 +440,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchToPlayer('native');
                 nativePlayerEl.src = data.url;
                 playerContainer.classList.remove('hidden');
+                
+                // Save to IndexedDB
+                if (typeof localforage !== 'undefined') {
+                    localforage.setItem('movie_state', { type: 'url', url: data.url });
+                }
                 playActiveVideo();
+            }
+            else if (data.type === 'close_movie') {
+                clearMovieState();
             }
             else if (data.type === 'play') {
                 if (Math.abs(getActiveCurrentTime() - data.time) > 1) setActiveCurrentTime(data.time);
@@ -402,6 +473,12 @@ document.addEventListener('DOMContentLoaded', () => {
             playerContainer.classList.remove('hidden');
             switchToPlayer('native');
             nativePlayerEl.src = URL.createObjectURL(file);
+            
+            // Save to IndexedDB
+            if (typeof localforage !== 'undefined') {
+                localforage.setItem('movie_state', { type: 'file', blob: file, name: file.name, size: file.size });
+            }
+            
             playActiveVideo();
             if (peerConnection && peerConnection.open) {
                 startFileTransfer(file);
@@ -425,6 +502,11 @@ document.addEventListener('DOMContentLoaded', () => {
             playActiveVideo();
             
             currentVideoState = { type: 'load_url', url: url };
+            
+            // Save to IndexedDB
+            if (typeof localforage !== 'undefined') {
+                localforage.setItem('movie_state', { type: 'url', url: url });
+            }
             
             if (peerConnection && peerConnection.open) {
                 peerConnection.send(currentVideoState);
