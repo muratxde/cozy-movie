@@ -163,9 +163,50 @@ document.addEventListener('DOMContentLoaded', () => {
     nativePlayerEl.addEventListener('play', handlePlayEvent);
     nativePlayerEl.addEventListener('pause', handlePauseEvent);
     nativePlayerEl.addEventListener('seeked', handleSeekEvent);
+    // Loading Overlay Logic for Native Player
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    let bufferPercentText = document.getElementById('bufferPercentText');
+    if (!bufferPercentText && loadingOverlay) {
+        bufferPercentText = document.createElement('p');
+        bufferPercentText.id = 'bufferPercentText';
+        bufferPercentText.style.cssText = 'color: var(--primary); font-weight: bold; font-size: 1.2rem; margin-top: 1rem;';
+        loadingOverlay.appendChild(bufferPercentText);
+    }
+
+    function showLoading() {
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('hidden');
+            if (bufferPercentText) bufferPercentText.innerText = "%0 Yüklendi";
+        }
+    }
+    function hideLoading() {
+        if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    }
+
+    nativePlayerEl.addEventListener('loadstart', showLoading);
+    nativePlayerEl.addEventListener('waiting', showLoading);
+    nativePlayerEl.addEventListener('playing', hideLoading);
+    nativePlayerEl.addEventListener('canplay', hideLoading);
     nativePlayerEl.addEventListener('error', (e) => {
+        hideLoading();
         alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
     });
+    nativePlayerEl.addEventListener('progress', () => {
+        if (nativePlayerEl.buffered.length > 0 && nativePlayerEl.duration > 0) {
+            let maxBuffered = 0;
+            // Get the furthest buffered range
+            for (let i = 0; i < nativePlayerEl.buffered.length; i++) {
+                if (nativePlayerEl.buffered.end(i) > maxBuffered) {
+                    maxBuffered = nativePlayerEl.buffered.end(i);
+                }
+            }
+            const percent = Math.min(100, (maxBuffered / nativePlayerEl.duration) * 100);
+            if (bufferPercentText && !loadingOverlay.classList.contains('hidden')) {
+                bufferPercentText.innerText = `%${percent.toFixed(1)} Yüklendi`;
+            }
+        }
+    });
+
     // Execute any deferred play/seek once video becomes ready
     nativePlayerEl.addEventListener('canplay', () => {
         if (pendingSync) {
