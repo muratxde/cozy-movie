@@ -66,15 +66,20 @@
             </div>
 
             <div class="input-group">
-                <!-- Local File Input for WebTorrent -->
                 <label class="custom-file-upload">
-                    <input type="file" id="fileInput" accept="video/mp4, video/webm, video/ogg" />
-                    <i class="ph-fill ph-folder-notch-open"></i>
-                    <span>Bilgisayardan Seç (Anında Aktarım)</span>
+                    <i class="ph-fill ph-file-video"></i>
+                    <span>Bilgisayardan Seç</span>
+                    <input type="file" id="fileInput" accept="video/*">
                 </label>
                 
-                <div class="divider" style="width: 40%;">
-                    <span>veya</span>
+                <label class="custom-file-upload" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.2); box-shadow: none;">
+                    <i class="ph-fill ph-subtitles"></i>
+                    <span>Altyazı Ekle (.srt/.vtt)</span>
+                    <input type="file" id="subtitleInput" accept=".srt,.vtt">
+                </label>
+
+                <div class="divider">
+                    <span>VEYA URL İLE</span>
                 </div>
 
                 <!-- URL Input -->
@@ -112,7 +117,10 @@
 
         <!-- Player Container -->
         <div class="player-container hidden" id="playerContainer">
-            <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: flex-end; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                <button id="cinemaModeBtn" class="primary-btn" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
+                    <i class="ph-bold ph-lightbulb"></i> Işıkları Kapat
+                </button>
                 <button id="closeMovieBtn" class="primary-btn" style="background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.5); padding: 0.5rem 1rem; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="ph-bold ph-x"></i> Filmi Kapat / Yeni Seç
                 </button>
@@ -140,7 +148,22 @@
             <p style="color: var(--text-muted); margin-top: 0.5rem; max-width: 300px;">Büyük dosyaların işlenmesi birkaç saniye sürebilir, lütfen bekleyin.</p>
         </div>
 
-        <!-- Chat UI -->
+        <!-- Reaction Emojis -->
+    <div class="reactions-bar hidden" id="reactionsBar">
+        <button class="reaction-btn" data-emoji="❤️">❤️</button>
+        <button class="reaction-btn" data-emoji="😂">😂</button>
+        <button class="reaction-btn" data-emoji="😱">😱</button>
+        <button class="reaction-btn" data-emoji="🥺">🥺</button>
+        <button class="reaction-btn" data-emoji="🍿">🍿</button>
+    </div>
+
+    <!-- Floating Emojis Container -->
+    <div id="floatingEmojisContainer"></div>
+
+    <!-- Toasts Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Chat UI -->
         <div id="chatContainer" class="chat-container closed">
             <div class="chat-header">
                 <h3><i class="ph-fill ph-chat-teardrop-text"></i> Sohbet</h3>

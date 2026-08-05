@@ -25,6 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const hostSeedStatus = document.getElementById('hostSeedStatus');
     const closeMovieBtn = document.getElementById('closeMovieBtn');
     
+    // Premium UI Elements
+    const reactionsBar = document.getElementById('reactionsBar');
+    const floatingEmojisContainer = document.getElementById('floatingEmojisContainer');
+    const toastContainer = document.getElementById('toastContainer');
+    const cinemaModeBtn = document.getElementById('cinemaModeBtn');
+    const subtitleInput = document.getElementById('subtitleInput');
+    
     // Chat UI
     const chatToggleBtn = document.getElementById('chatToggleBtn');
     const chatContainer = document.getElementById('chatContainer');
@@ -112,17 +119,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function handlePlayEvent() {
         ambientLight.classList.add('active');
         updateAmbientLight();
-        if (!isSyncing && peerConnection) peerConnection.send({ type: 'play', time: getActiveCurrentTime() });
+        if (!isSyncing && peerConnection) peerConnection.send({ type: 'play', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
     }
     
     function handlePauseEvent() {
         ambientLight.classList.remove('active');
         cancelAnimationFrame(animationFrameId);
-        if (!isSyncing && peerConnection) peerConnection.send({ type: 'pause', time: getActiveCurrentTime() });
+        if (!isSyncing && peerConnection) peerConnection.send({ type: 'pause', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
     }
     
     function handleSeekEvent() {
-        if (!isSyncing && peerConnection) peerConnection.send({ type: 'seek', time: getActiveCurrentTime() });
+        if (!isSyncing && peerConnection) peerConnection.send({ type: 'seek', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
     }
 
     if (player) {
@@ -179,9 +186,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentFile.name = state.name;
                     currentFile.size = state.size; // preserve original size
                     nativePlayerEl.src = URL.createObjectURL(currentFile);
+                    reactionsBar.classList.remove('hidden');
                 } else if (state.type === 'url') {
                     currentVideoState = { type: 'load_url', url: state.url };
                     nativePlayerEl.src = state.url;
+                    reactionsBar.classList.remove('hidden');
                 }
             }
         }).catch(e => console.error("IndexedDB okuma hatası:", e));
@@ -196,6 +205,9 @@ document.addEventListener('DOMContentLoaded', () => {
         nativePlayerEl.pause();
         playerContainer.classList.add('hidden');
         mediaSelector.classList.remove('hidden');
+        reactionsBar.classList.add('hidden');
+        document.body.classList.remove('cinema-mode');
+        cinemaModeBtn.innerHTML = '<i class="ph-bold ph-lightbulb"></i> Işıkları Kapat';
     }
 
     if (closeMovieBtn) {
@@ -278,7 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         
-        const conn = peer.connect(partnerId, { reliable: true });
+        const conn = peer.connect(partnerId);
         conn.on('open', () => {
             peerConnection = conn;
             setupConnectionEvents();
@@ -291,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupConnectionEvents() {
         clearInterval(connectInterval);
         
-        peerConnection.on('open', () => {
+        const onConnOpen = () => {
             connectionStatus.className = 'connection-status connected';
             statusText.innerText = '❤️ Sevgiliniz Bağlandı';
             chatToggleBtn.classList.remove('hidden');
@@ -307,7 +319,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (currentVideoState) {
                 peerConnection.send(currentVideoState);
             }
-        });
+        };
+
+        if (peerConnection.open) {
+            onConnOpen();
+        } else {
+            peerConnection.on('open', onConnOpen);
+        }
         
         peerConnection.on('data', handleSyncData);
         
@@ -343,21 +361,31 @@ document.addEventListener('DOMContentLoaded', () => {
         hostSeedStatus.classList.remove('hidden');
         document.getElementById('hostSeedText').innerText = "Aktarım Başlıyor...";
         peerConnection.send({ type: 'file_transfer_start', name: file.name, size: file.size, mimeType: file.type || 'video/mp4' });
+        reactionsBar.classList.remove('hidden');
     }
 
-    function sendNextChunk() {
-        if (!currentFile || !peerConnection) return;
-        if (currentFileOffset >= currentFile.size) return;
+    async function processTransferQueue() {
+        if (!amISendingFile || !currentFile || !peerConnection) return;
         
-        const chunk = currentFile.slice(currentFileOffset, currentFileOffset + CHUNK_SIZE);
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            peerConnection.send({ type: 'file_transfer_chunk', data: e.target.result });
+        while (currentFileOffset < currentFile.size) {
+            // Wait if WebRTC buffer is full (> 16MB) to prevent crashing
+            if (peerConnection.dataChannel && peerConnection.dataChannel.bufferedAmount > 16 * 1024 * 1024) {
+                setTimeout(processTransferQueue, 50);
+                return; // exit current loop, will resume
+            }
+            
+            const chunk = currentFile.slice(currentFileOffset, currentFileOffset + CHUNK_SIZE);
+            const arrayBuf = await chunk.arrayBuffer();
+            
+            peerConnection.send({ type: 'file_transfer_chunk', data: arrayBuf });
             currentFileOffset += CHUNK_SIZE;
-            const progress = Math.min(100, (currentFileOffset / currentFile.size) * 100);
-            document.getElementById('hostSeedText').innerText = `Aktarım: %${progress.toFixed(1)}`;
-        };
-        reader.readAsArrayBuffer(chunk);
+            
+            // Update UI occasionally
+            if (currentFileOffset % (CHUNK_SIZE * 20) === 0 || currentFileOffset >= currentFile.size) {
+                const progress = Math.min(100, (currentFileOffset / currentFile.size) * 100);
+                document.getElementById('hostSeedText').innerText = `Aktarım: %${progress.toFixed(1)}`;
+            }
+        }
     }
 
     function handleSyncData(data) {
@@ -384,6 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchToPlayer('native');
                 playerContainer.classList.remove('hidden');
                 fileTransferContainer.classList.remove('hidden');
+                reactionsBar.classList.remove('hidden');
                 
                 if (!nativePlayerEl.src) nativePlayerEl.src = ""; 
                 
@@ -393,15 +422,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 receivedChunks = [];
                 receivedSize = 0;
                 transferStartTime = Date.now();
-                peerConnection.send({ type: 'file_transfer_ack' });
+                peerConnection.send({ type: 'file_transfer_ack' }); // Start signal
             }
             else if (data.type === 'file_transfer_chunk') {
+                const byteLength = data.data.byteLength || data.data.size || 0;
                 receivedChunks.push(data.data);
-                receivedSize += data.data.byteLength;
+                receivedSize += byteLength;
                 
-                const progress = Math.min(100, (receivedSize / expectedFileSize) * 100);
-                transferProgressBar.style.width = `${progress}%`;
-                transferText.innerText = `Film yükleniyor: %${progress.toFixed(1)}`;
+                if (receivedSize % (CHUNK_SIZE * 20) === 0 || receivedSize >= expectedFileSize) {
+                    const progress = Math.min(100, (receivedSize / expectedFileSize) * 100);
+                    transferProgressBar.style.width = `${progress}%`;
+                    transferText.innerText = `Film yükleniyor: %${progress.toFixed(1)}`;
+                }
                 
                 if (receivedSize >= expectedFileSize) {
                     fileTransferContainer.classList.add('hidden');
@@ -418,12 +450,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     nativePlayerEl.src = URL.createObjectURL(blob);
                     peerConnection.send({ type: 'file_transfer_complete' });
                     receivedChunks = []; 
-                } else {
-                    peerConnection.send({ type: 'file_transfer_ack' });
                 }
             }
             else if (data.type === 'file_transfer_ack') {
-                if (amISendingFile) sendNextChunk();
+                if (amISendingFile) processTransferQueue();
             }
             else if (data.type === 'file_transfer_complete') {
                 if (amISendingFile) {
@@ -440,6 +470,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchToPlayer('native');
                 nativePlayerEl.src = data.url;
                 playerContainer.classList.remove('hidden');
+                reactionsBar.classList.remove('hidden');
                 
                 // Save to IndexedDB
                 if (typeof localforage !== 'undefined') {
@@ -453,13 +484,23 @@ document.addEventListener('DOMContentLoaded', () => {
             else if (data.type === 'play') {
                 if (Math.abs(getActiveCurrentTime() - data.time) > 1) setActiveCurrentTime(data.time);
                 playActiveVideo();
+                if (data.user) showToast(data.user + ' filmi başlattı ▶️');
             }
             else if (data.type === 'pause') {
                 setActiveCurrentTime(data.time);
                 pauseActiveVideo();
+                if (data.user) showToast(data.user + ' filmi durdurdu ⏸️');
             }
             else if (data.type === 'seek') {
                 setActiveCurrentTime(data.time);
+                if (data.user) showToast(data.user + ' filmi sardı ⏩');
+            }
+            else if (data.type === 'reaction') {
+                createFloatingEmoji(data.emoji, false);
+            }
+            else if (data.type === 'load_subtitle') {
+                loadSubtitleFromText(data.text, data.name);
+                showToast('Sevgiliniz altyazı yükledi 📝');
             }
         } catch(e) { console.error("Sync Data Hatası:", e); }
         setTimeout(() => { isSyncing = false; }, 300);
@@ -515,4 +556,97 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+
+    // --- Premium Features Logic ---
+
+    // 1. Reactions
+    function createFloatingEmoji(emoji, isMine) {
+        const span = document.createElement('span');
+        span.className = 'floating-emoji';
+        span.innerText = emoji;
+        // Random horizontal position
+        const randomX = Math.random() * 60 + 20; // 20% to 80%
+        span.style.left = `${randomX}%`;
+        
+        floatingEmojisContainer.appendChild(span);
+        
+        setTimeout(() => {
+            span.remove();
+        }, 3000);
+    }
+
+    document.querySelectorAll('.reaction-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const emoji = e.target.getAttribute('data-emoji');
+            createFloatingEmoji(emoji, true);
+            if (peerConnection && peerConnection.open) {
+                peerConnection.send({ type: 'reaction', emoji: emoji });
+            }
+        });
+    });
+
+    // 2. Toasts
+    function showToast(message) {
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.innerHTML = `<i class="ph-fill ph-bell-ringing"></i> <span>${message}</span>`;
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // 3. Cinema Mode
+    if (cinemaModeBtn) {
+        cinemaModeBtn.addEventListener('click', () => {
+            document.body.classList.toggle('cinema-mode');
+            if (document.body.classList.contains('cinema-mode')) {
+                cinemaModeBtn.innerHTML = '<i class="ph-bold ph-lightbulb"></i> Işıkları Aç';
+            } else {
+                cinemaModeBtn.innerHTML = '<i class="ph-bold ph-lightbulb"></i> Işıkları Kapat';
+            }
+        });
+    }
+
+    // 4. Subtitles
+    function loadSubtitleFromText(text, name) {
+        const blob = new Blob([text], { type: 'text/vtt' });
+        const blobUrl = URL.createObjectURL(blob);
+        
+        // Remove existing tracks
+        const existingTracks = nativePlayerEl.querySelectorAll('track');
+        existingTracks.forEach(t => t.remove());
+
+        const track = document.createElement('track');
+        track.src = blobUrl;
+        track.kind = 'subtitles';
+        track.srclang = 'tr';
+        track.label = name || 'Altyazı';
+        track.default = true;
+        
+        nativePlayerEl.appendChild(track);
+    }
+
+    if (subtitleInput) {
+        subtitleInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const text = ev.target.result;
+                loadSubtitleFromText(text, file.name);
+                showToast("Altyazı yüklendi 📝");
+                
+                if (peerConnection && peerConnection.open) {
+                    peerConnection.send({ type: 'load_subtitle', text: text, name: file.name });
+                }
+            };
+            reader.readAsText(file);
+            subtitleInput.value = '';
+        });
+    }
+
 });
