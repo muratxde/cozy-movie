@@ -258,7 +258,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function fetchAzureLibrary(baseUrl) {
         if (!baseUrl || !movieGrid) return;
-        currentAzureBaseUrl = baseUrl;
+        currentAzureBaseUrl = baseUrl.trim();
         localStorage.setItem('azure_storage_url', currentAzureBaseUrl);
         if (azureUrlInput) azureUrlInput.value = currentAzureBaseUrl;
         movieGrid.innerHTML = '<div class="loading-catalog"><div class="mini-spinner"></div><span>Kütüphane yükleniyor...</span></div>';
@@ -277,33 +277,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fetch(fetchUrl)
             .then(function(r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status + ' — Container erişimi "Container" mı?');
+                if (!r.ok) throw new Error('HTTP ' + r.status + ' — Lütfen CORS ve Kapsayıcı İzinlerini kontrol edin.');
                 return r.text();
             })
             .then(function(xmlText) {
                 var parser = new DOMParser();
                 var doc = parser.parseFromString(xmlText, 'text/xml');
-                var blobs = doc.querySelectorAll('Blob');
+                var blobs = doc.getElementsByTagName('Blob');
                 var videos = [];
-                blobs.forEach(function(blob) {
-                    var nameEl = blob.querySelector('Name');
+                
+                Array.from(blobs).forEach(function(blob) {
+                    var nameEl = blob.getElementsByTagName('Name')[0];
                     if (!nameEl) return;
                     var name = nameEl.textContent;
                     if (!/\.(mp4|mkv|avi|mov|webm|ts|m4v)$/i.test(name)) return;
+                    
                     var encodedName = name.split('/').map(function(p) {
                         try { return encodeURIComponent(decodeURIComponent(p)); }
                         catch(e) { return encodeURIComponent(p); }
                     }).join('/');
-                    // Düzgün URL oluşturma (SAS token varsa korumak için)
+                    
+                    // Düzgün URL oluşturma (SAS token varsa korumak için, restype ve comp'i silmek için)
                     let videoUrl;
                     try {
                         let urlObj = new URL(currentAzureBaseUrl);
-                        // Path'in sonuna slash ekle ve dosya adını ekle
+                        urlObj.searchParams.delete('restype');
+                        urlObj.searchParams.delete('comp');
                         let pathname = urlObj.pathname.replace(/\/$/, '') + '/' + encodedName;
                         urlObj.pathname = pathname;
                         videoUrl = urlObj.toString();
                     } catch(e) {
-                        videoUrl = currentAzureBaseUrl.replace(/\/$/, '') + '/' + encodedName;
+                        videoUrl = currentAzureBaseUrl.replace(/\/$/, '').split('?')[0] + '/' + encodedName;
                     }
                     
                     videos.push({
