@@ -191,7 +191,10 @@ document.addEventListener('DOMContentLoaded', () => {
     nativePlayerEl.addEventListener('seeked', hideLoading); // İleri sarma bitince gizle
     nativePlayerEl.addEventListener('error', (e) => {
         hideLoading();
-        alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
+        // Video kapatılırken (src temizlenirken) hata vermemesi için src kontrolü
+        if (nativePlayerEl.getAttribute('src')) {
+            alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
+        }
     });
     nativePlayerEl.addEventListener('progress', () => {
         if (nativePlayerEl.buffered.length > 0 && nativePlayerEl.duration > 0 && !isNaN(nativePlayerEl.duration)) {
@@ -276,7 +279,8 @@ document.addEventListener('DOMContentLoaded', () => {
         currentFile = null;
         currentVideoState = null;
         pendingSync = null;
-        nativePlayerEl.src = "";
+        nativePlayerEl.removeAttribute('src'); // src="" yerine removeAttribute kullanarak hata eventini engelle
+        nativePlayerEl.load();
         if (player) player.pause();
         nativePlayerEl.pause();
         playerContainer.classList.add('hidden');
@@ -297,7 +301,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Film Kütüphanesi (Azure Blob Auto-List) ---
-    var currentAzureBaseUrl = localStorage.getItem('azure_storage_url') || '';
+    const HARDCODED_SAS_URL = "https://murat132580.blob.core.windows.net/movies?sv=2026-02-06&ss=bfqt&srt=co&sp=rwdlacupiytfx&se=2035-08-06T01:54:13Z&st=2026-08-05T17:39:13Z&spr=https&sig=Ljdb1u6dJnLJ2knDqqDfnoO8dh%2BpnF1RpRfta38C7wM%3D";
+    var currentAzureBaseUrl = HARDCODED_SAS_URL;
 
     function fetchAzureLibrary(baseUrl) {
         if (!baseUrl || !movieGrid) return;
@@ -480,8 +485,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         restoreMovieState();
         initPeer();
-        // Kaydedilmiş Azure URL varsa kütüphaneyi otomatik yükle
-        if (currentAzureBaseUrl) fetchAzureLibrary(currentAzureBaseUrl);
+        // Sabitlenmiş SAS URL'den kütüphaneyi hemen yükle
+        fetchAzureLibrary(currentAzureBaseUrl);
     }
 
     loginBtn.addEventListener('click', tryLogin);
