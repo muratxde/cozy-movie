@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let expectedMimeType = '';
     let transferStartTime = 0;
     let lastUITime = 0;
+    let pendingSync = null; // Deferred play/seek if video not ready yet
 
     // Helper for formatting sizes
     function formatBytes(bytes) {
@@ -157,6 +158,15 @@ document.addEventListener('DOMContentLoaded', () => {
     nativePlayerEl.addEventListener('error', (e) => {
         alert("Video yüklenirken bir hata oluştu. Linkin veya dosyanın geçerli olduğundan emin olun.");
     });
+    // Execute any deferred play/seek once video becomes ready
+    nativePlayerEl.addEventListener('canplay', () => {
+        if (pendingSync) {
+            const { type, time } = pendingSync;
+            pendingSync = null;
+            nativePlayerEl.currentTime = time;
+            if (type === 'play') { ignoreNextPlay = true; playActiveVideo(); }
+        }
+    });
 
     // --- Chat System ---
     function appendChatMessage(msg, type) {
@@ -214,10 +224,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof localforage !== 'undefined') localforage.removeItem('movie_state');
         currentFile = null;
         currentVideoState = null;
+        pendingSync = null;
         nativePlayerEl.src = "";
         if (player) player.pause();
         nativePlayerEl.pause();
         playerContainer.classList.add('hidden');
+        guestWaiting.classList.add('hidden');
         mediaSelector.classList.remove('hidden');
         reactionsBar.classList.add('hidden');
         document.body.classList.remove('cinema-mode');
@@ -318,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(connectInterval);
         
         const onConnOpen = () => {
-            connectionStatus.className = 'connection-status connected';
+            connectionStatus.className = 'status-badge connected';
             statusText.innerText = '❤️ Sevgiliniz Bağlandı';
             chatToggleBtn.classList.remove('hidden');
             chatInput.disabled = false;
@@ -344,7 +356,7 @@ document.addEventListener('DOMContentLoaded', () => {
         peerConnection.on('data', handleSyncData);
         
         peerConnection.on('close', () => {
-            connectionStatus.className = 'connection-status disconnected';
+            connectionStatus.className = 'status-badge disconnected';
             statusText.innerText = 'Bağlantı Koptu! Aranıyor...';
             peerConnection = null;
             // Restart polling
@@ -432,8 +444,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 amISendingFile = false; // I am receiving
                 mediaSelector.classList.add('hidden');
-                switchToPlayer('native');
-                playerContainer.classList.remove('hidden');
+                playerContainer.classList.add('hidden');       // Henüz player gösterme
+                guestWaiting.classList.remove('hidden');       // Transfer bekleme ekranını göster
+                guestMessage.innerText = 'Film geliyor... Lütfen bekle 🍿';
                 fileTransferContainer.classList.remove('hidden');
                 reactionsBar.classList.remove('hidden');
                 
@@ -471,24 +484,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 if (receivedSize >= expectedFileSize) {
                     fileTransferContainer.classList.add('hidden');
+                    guestWaiting.classList.add('hidden');       // Bekleme ekranını kapat
                     const blob = new Blob(receivedChunks, { type: expectedMimeType });
-                    currentFile = blob;
-                    currentFile.name = expectedFileName;
-                    currentFile.size = expectedFileSize;
+                    // File constructor kullanıyoruz: Blob üzerinde .name/.size read-only olduğundan set edilemez
+                    currentFile = new File([blob], expectedFileName, { type: expectedMimeType });
                     
                     // Save to IndexedDB
                     if (typeof localforage !== 'undefined') {
                         localforage.setItem('movie_state', { type: 'file', blob: blob, name: expectedFileName, size: expectedFileSize });
                     }
                     
-                    nativePlayerEl.src = URL.createObjectURL(blob);
-                    
-                    // Alıcının siyah/gri ekranda kalmaması için video yüklendiğinde oynatmaya başla
-                    nativePlayerEl.oncanplay = () => {
-                        playActiveVideo();
-                        nativePlayerEl.oncanplay = null;
-                    };
-
+                    switchToPlayer('native');
+                    playerContainer.classList.remove('hidden'); // Şimdi player'ı göster
+                    nativePlayerEl.src = URL.createObjectURL(currentFile);
                     peerConnection.send({ type: 'file_transfer_complete' });
                     receivedChunks = []; 
                 }
@@ -523,12 +531,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearMovieState();
             }
             else if (data.type === 'play') {
-                if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
-                    ignoreNextSeek = true;
-                    setActiveCurrentTime(data.time);
+                if (activePlayer === nativePlayerEl && nativePlayerEl.readyState < 2) {
+                    // Video henüz yüklenmedi, canplay tetiklenince oynatılacak
+                    pendingSync = { type: 'play', time: data.time };
+                } else {
+                    if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
+                        ignoreNextSeek = true;
+                        setActiveCurrentTime(data.time);
+                    }
+                    ignoreNextPlay = true;
+                    playActiveVideo();
                 }
-                ignoreNextPlay = true;
-                playActiveVideo();
                 if (data.user) showToast(data.user + ' filmi başlattı ▶️');
             }
             else if (data.type === 'pause') {
