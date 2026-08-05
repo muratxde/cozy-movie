@@ -61,70 +61,66 @@
 
         <div class="media-selector hidden" id="mediaSelector">
 
-            <!-- Film Kütüphanesi (Azure Blob Storage) -->
+            <!-- Film Kütüphanesi — Azure Auto-List -->
             <div class="library-section">
                 <div class="library-header">
                     <div class="library-title-group">
                         <i class="ph-fill ph-film-slate library-title-icon"></i>
                         <div>
                             <h3>Film Kütüphanesi</h3>
-                            <p class="library-subtitle">Azure'dan direkt stream 🚀</p>
+                            <p class="library-subtitle">
+                                Azure'dan otomatik yüklenir
+                                <span id="movieCountBadge" class="movie-count-badge hidden"></span>
+                            </p>
                         </div>
                     </div>
-                    <div class="catalog-input-wrapper">
-                        <i class="ph ph-link-simple" style="color: var(--text-muted); font-size: 1rem; flex-shrink:0;"></i>
-                        <input type="text" id="catalogUrlInput" placeholder="catalog.json URL'sini yapıştır...">
-                        <button id="loadCatalogBtn" title="Yükle">
-                            <i class="ph-fill ph-magnifying-glass"></i>
-                            <span>Yükle</span>
+                    <div class="library-actions">
+                        <div class="library-search-wrapper">
+                            <i class="ph ph-magnifying-glass"></i>
+                            <input type="text" id="librarySearchInput" placeholder="Film ara...">
+                        </div>
+                        <button id="refreshLibraryBtn" class="lib-icon-btn" title="Yenile">
+                            <i class="ph-bold ph-arrows-clockwise"></i>
                         </button>
                     </div>
                 </div>
+
+                <div class="azure-url-bar">
+                    <i class="ph ph-cloud" style="color:var(--text-muted);flex-shrink:0;font-size:1.1rem;"></i>
+                    <input type="text" id="azureUrlInput" placeholder="https://murat132580.blob.core.windows.net/movies">
+                    <button id="loadLibraryBtn">
+                        <i class="ph-fill ph-cloud-arrow-down"></i>
+                        <span>Yükle</span>
+                    </button>
+                </div>
+
                 <div id="movieGrid" class="movie-grid">
                     <div class="empty-library">
-                        <i class="ph-duotone ph-film-reel"></i>
-                        <p>catalog.json URL'sini yukarıya yapıştırıp<br><strong>Yükle</strong> butonuna bas</p>
+                        <i class="ph-duotone ph-cloud-arrow-up"></i>
+                        <p>Azure Storage URL'sini gir ve <strong>Yükle</strong>'ye bas<br>Filmler otomatik listelenecek ✨</p>
                     </div>
                 </div>
             </div>
 
-            <div class="divider" style="margin-top: 2rem;">
-                <span>VEYA KENDİN SEÇ / URL GİR</span>
+            <div class="divider" style="margin-top: 1.5rem; margin-bottom: 1.5rem;">
+                <span>VEYA YEREL DOSYA / URL</span>
             </div>
 
-            <div class="input-group">
-                <label class="custom-file-upload">
+            <div class="local-media-row">
+                <label class="local-upload-btn">
                     <i class="ph-fill ph-file-video"></i>
                     <span>Bilgisayardan Seç</span>
                     <input type="file" id="fileInput" accept="video/*">
                 </label>
-                
-                <label class="custom-file-upload" style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.2); box-shadow: none;">
-                    <i class="ph-fill ph-subtitles"></i>
-                    <span>Altyazı Ekle (.srt/.vtt)</span>
-                    <input type="file" id="subtitleInput" accept=".srt,.vtt">
-                </label>
-
-                <div class="divider">
-                    <span>VEYA URL İLE</span>
-                </div>
-
-                <!-- URL Input -->
-                <div class="url-input-wrapper">
+                <div class="url-input-wrapper" style="flex:1; max-width:none;">
                     <i class="ph ph-link"></i>
-                    <input type="text" id="urlInput" placeholder="Sunucunuzdaki veya internetteki video URL'si (.mp4, .m3u8)">
+                    <input type="text" id="urlInput" placeholder="Video URL gir (.mp4, .m3u8, .mkv)">
                     <button id="loadUrlBtn"><i class="ph-fill ph-play-circle"></i></button>
                 </div>
             </div>
-            
-            <!-- Webtorrent Info Box -->
-            <div class="ts-info-box" style="margin-top: 1.5rem;">
-                <i class="ph-fill ph-rocket-launch"></i>
-                <div class="ts-info-text">
-                    <strong>P2P Süper Akış (Yeni!)</strong>
-                    <p>Artık "Bilgisayardan Seç" diyerek kendi bilgisayarınızdaki (C: diski vb.) bir filmi seçtiğinizde, sistem bunu anında eş zamanlı akış (stream) olarak sevgilinizin bilgisayarına iletecek! Sizin yükleme beklemenize gerek kalmayacak.</p>
-                </div>
-            </div>
+
+            <!-- Hidden subtitle input (kept for P2P compat) -->
+            <input type="file" id="subtitleInput" accept=".srt,.vtt" style="display:none;">
         </div>
 
         <!-- Guest Waiting Screen -->

@@ -33,9 +33,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const subtitleInput = document.getElementById('subtitleInput');
     
     // Film Kütüphanesi UI
-    const catalogUrlInput = document.getElementById('catalogUrlInput');
-    const loadCatalogBtn = document.getElementById('loadCatalogBtn');
+    const azureUrlInput = document.getElementById('azureUrlInput');
+    const loadLibraryBtn = document.getElementById('loadLibraryBtn');
+    const refreshLibraryBtn = document.getElementById('refreshLibraryBtn');
+    const librarySearchInput = document.getElementById('librarySearchInput');
     const movieGrid = document.getElementById('movieGrid');
+    const movieCountBadge = document.getElementById('movieCountBadge');
 
     // Chat UI
     const chatToggleBtn = document.getElementById('chatToggleBtn');
@@ -250,52 +253,81 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- Film Kütüphanesi (Azure Blob Storage) ---
-    function fetchCatalog(url) {
-        if (!url || !movieGrid) return;
-        localStorage.setItem('catalog_url', url);
+    // --- Film Kütüphanesi (Azure Blob Auto-List) ---
+    var currentAzureBaseUrl = localStorage.getItem('azure_storage_url') || '';
+
+    function fetchAzureLibrary(baseUrl) {
+        if (!baseUrl || !movieGrid) return;
+        currentAzureBaseUrl = baseUrl.replace(/\/$/, '');
+        localStorage.setItem('azure_storage_url', currentAzureBaseUrl);
+        if (azureUrlInput) azureUrlInput.value = currentAzureBaseUrl;
         movieGrid.innerHTML = '<div class="loading-catalog"><div class="mini-spinner"></div><span>Kütüphane yükleniyor...</span></div>';
-        // Cache-bust ile fetch et (Azure bazen eski veriyi cache'ler)
-        var fetchUrl = url + (url.includes('?') ? '&' : '?') + '_t=' + Date.now();
-        fetch(fetchUrl)
+        if (movieCountBadge) movieCountBadge.classList.add('hidden');
+
+        fetch(currentAzureBaseUrl + '?restype=container&comp=list')
             .then(function(r) {
-                if (!r.ok) throw new Error('HTTP ' + r.status + ' - URL doğru mu?');
-                return r.json();
+                if (!r.ok) throw new Error('HTTP ' + r.status + ' — Container erişimi "Container" mı?');
+                return r.text();
             })
-            .then(function(movies) { renderMovieCards(movies); })
+            .then(function(xmlText) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(xmlText, 'text/xml');
+                var blobs = doc.querySelectorAll('Blob');
+                var videos = [];
+                blobs.forEach(function(blob) {
+                    var nameEl = blob.querySelector('Name');
+                    if (!nameEl) return;
+                    var name = nameEl.textContent;
+                    if (!/\.(mp4|mkv|avi|mov|webm|ts|m4v)$/i.test(name)) return;
+                    var encodedName = name.split('/').map(function(p) {
+                        try { return encodeURIComponent(decodeURIComponent(p)); }
+                        catch(e) { return encodeURIComponent(p); }
+                    }).join('/');
+                    videos.push({
+                        title: name.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').trim(),
+                        url: currentAzureBaseUrl + '/' + encodedName
+                    });
+                });
+                renderMovieCards(videos);
+            })
             .catch(function(err) {
-                console.error('Catalog fetch hatası:', err);
-                movieGrid.innerHTML = '<div class="empty-library"><i class="ph-fill ph-warning-circle" style="color:#ff4757;opacity:1;"></i>' +
-                    '<p style="color:#ff4757;opacity:1;">Yüklenemedi: ' + err.message + '</p>' +
-                    '<p style="font-size:0.8rem;margin-top:0.5rem;">CORS ayarı tamam mı? URL doğru mu?</p></div>';
+                console.error('Azure kütüphane hatası:', err);
+                movieGrid.innerHTML =
+                    '<div class="empty-library">' +
+                    '<i class="ph-fill ph-warning-circle" style="color:#ff4757;opacity:1;"></i>' +
+                    '<p style="color:#ff4757;opacity:1;margin-top:0.5rem;">' + err.message + '</p>' +
+                    '<p style="font-size:0.78rem;opacity:0.6;margin-top:0.3rem;">CORS ayarı tamam mı? Container erişimi "Container" mı?</p>' +
+                    '</div>';
             });
     }
 
     function renderMovieCards(movies) {
         if (!movies || movies.length === 0) {
-            movieGrid.innerHTML = '<div class="empty-library"><i class="ph-duotone ph-film-reel"></i><p>Kütüphanede hiç film yok</p></div>';
+            movieGrid.innerHTML = '<div class="empty-library"><i class="ph-duotone ph-film-reel"></i><p>Kütüphanede hiç video yok</p></div>';
+            if (movieCountBadge) movieCountBadge.classList.add('hidden');
             return;
         }
+        if (movieCountBadge) {
+            movieCountBadge.textContent = movies.length + ' film';
+            movieCountBadge.classList.remove('hidden');
+        }
         movieGrid.innerHTML = '';
-        movies.forEach(movie => {
-            const card = document.createElement('div');
+        movies.forEach(function(movie) {
+            var card = document.createElement('div');
             card.className = 'movie-card';
             card.dataset.url = movie.url;
-            const safeTitle = (movie.title || '').replace(/"/g, '&quot;');
-            const noPosterHtml = '<div class="poster-fallback"><i class="ph-fill ph-film-slate"></i><span>' + safeTitle + '</span></div>';
-            const posterHtml = movie.poster
-                ? '<img src="' + movie.poster + '" alt="' + safeTitle + '" loading="lazy" onerror="this.outerHTML=this.dataset.fb" data-fb="' + noPosterHtml.replace(/"/g, '&quot;') + '">'
-                : noPosterHtml;
+            card.dataset.title = movie.title;
+            var safeTitle = (movie.title || '').replace(/"/g, '&quot;');
+            var noPosterHtml = '<div class="poster-fallback"><i class="ph-fill ph-film-slate"></i><span>' + safeTitle + '</span></div>';
             card.innerHTML =
                 '<div class="movie-poster">' +
-                    posterHtml +
+                    noPosterHtml +
                     '<div class="movie-overlay"><div class="play-btn-overlay"><i class="ph-fill ph-play"></i></div></div>' +
                 '</div>' +
                 '<div class="movie-info">' +
                     '<h4>' + (movie.title || 'İsimsiz Film') + '</h4>' +
-                    '<span>' + (movie.duration || '') + '</span>' +
                 '</div>';
-            card.addEventListener('click', () => selectFromLibrary(movie, card));
+            card.addEventListener('click', function() { selectFromLibrary(movie, card); });
             movieGrid.appendChild(card);
         });
     }
@@ -306,15 +338,11 @@ document.addEventListener('DOMContentLoaded', () => {
         mediaSelector.classList.add('hidden');
         playerContainer.classList.remove('hidden');
         switchToPlayer('native');
-        // URL'deki Türkçe karakter ve boşlukları encode et
-        var encodedUrl = movie.url.split('/').map(function(part, i) {
-            return i < 3 ? part : encodeURIComponent(decodeURIComponent(part));
-        }).join('/');
-        nativePlayerEl.src = encodedUrl;
+        nativePlayerEl.src = movie.url;
         playActiveVideo();
-        currentVideoState = { type: 'load_url', url: encodedUrl };
+        currentVideoState = { type: 'load_url', url: movie.url };
         if (typeof localforage !== 'undefined') {
-            localforage.setItem('movie_state', { type: 'url', url: encodedUrl });
+            localforage.setItem('movie_state', { type: 'url', url: movie.url });
         }
         if (peerConnection && peerConnection.open) {
             peerConnection.send(currentVideoState);
@@ -323,21 +351,34 @@ document.addEventListener('DOMContentLoaded', () => {
         reactionsBar.classList.remove('hidden');
     }
 
-    if (loadCatalogBtn) {
-        loadCatalogBtn.addEventListener('click', () => {
-            var url = catalogUrlInput.value.trim();
-            if (url) fetchCatalog(url);
+    if (loadLibraryBtn) {
+        loadLibraryBtn.addEventListener('click', function() {
+            var url = azureUrlInput ? azureUrlInput.value.trim() : '';
+            if (url) fetchAzureLibrary(url);
         });
-        catalogUrlInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') { var url = catalogUrlInput.value.trim(); if (url) fetchCatalog(url); }
+    }
+    if (azureUrlInput) {
+        azureUrlInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') { var url = azureUrlInput.value.trim(); if (url) fetchAzureLibrary(url); }
+        });
+    }
+    if (refreshLibraryBtn) {
+        refreshLibraryBtn.addEventListener('click', function() {
+            if (currentAzureBaseUrl) fetchAzureLibrary(currentAzureBaseUrl);
+        });
+    }
+    if (librarySearchInput) {
+        librarySearchInput.addEventListener('input', function() {
+            var q = this.value.toLowerCase().trim();
+            document.querySelectorAll('.movie-card').forEach(function(card) {
+                var title = (card.dataset.title || '').toLowerCase();
+                card.style.display = (q && !title.includes(q)) ? 'none' : '';
+            });
         });
     }
 
-    // Auto-load saved catalog URL
-    var savedCatalogUrl = localStorage.getItem('catalog_url');
-    if (savedCatalogUrl && catalogUrlInput) {
-        catalogUrlInput.value = savedCatalogUrl;
-    }
+    // Auto-fill saved Azure URL
+    if (azureUrlInput && currentAzureBaseUrl) azureUrlInput.value = currentAzureBaseUrl;
 
     // --- Login Logic ---
     function tryLogin() {
@@ -369,6 +410,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         restoreMovieState();
         initPeer();
+        // Kaydedilmiş Azure URL varsa kütüphaneyi otomatik yükle
+        if (currentAzureBaseUrl) fetchAzureLibrary(currentAzureBaseUrl);
     }
 
     loginBtn.addEventListener('click', tryLogin);
