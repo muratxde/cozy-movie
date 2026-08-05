@@ -61,8 +61,25 @@
 
         <div class="media-selector hidden" id="mediaSelector">
 
-            <div class="divider">
-                <span>VİDEO SEÇİMİ</span>
+            <!-- Film Kütüphanesi (Azure Blob Storage) -->
+            <div class="library-section">
+                <div class="library-header">
+                    <h3><i class="ph-fill ph-film-slate"></i> Film Kütüphanesi</h3>
+                    <div class="catalog-input-wrapper">
+                        <input type="text" id="catalogUrlInput" placeholder="catalog.json Azure Blob URL'si...">
+                        <button id="loadCatalogBtn" title="Kütüphaneyi Yükle"><i class="ph-fill ph-arrow-clockwise"></i></button>
+                    </div>
+                </div>
+                <div id="movieGrid" class="movie-grid">
+                    <div class="empty-library">
+                        <i class="ph-duotone ph-film-reel"></i>
+                        <p>Yukarıya catalog.json URL'ni girerek film kütüphanenizi yükleyin</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider" style="margin-top: 2rem;">
+                <span>VEYA KENDİN SEÇ / URL GİR</span>
             </div>
 
             <div class="input-group">

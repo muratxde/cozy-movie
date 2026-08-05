@@ -32,6 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const cinemaModeBtn = document.getElementById('cinemaModeBtn');
     const subtitleInput = document.getElementById('subtitleInput');
     
+    // Film Kütüphanesi UI
+    const catalogUrlInput = document.getElementById('catalogUrlInput');
+    const loadCatalogBtn = document.getElementById('loadCatalogBtn');
+    const movieGrid = document.getElementById('movieGrid');
+
     // Chat UI
     const chatToggleBtn = document.getElementById('chatToggleBtn');
     const chatContainer = document.getElementById('chatContainer');
@@ -243,6 +248,83 @@ document.addEventListener('DOMContentLoaded', () => {
                 peerConnection.send({ type: 'close_movie' });
             }
         });
+    }
+
+    // --- Film Kütüphanesi (Azure Blob Storage) ---
+    function fetchCatalog(url) {
+        if (!url || !movieGrid) return;
+        localStorage.setItem('catalog_url', url);
+        movieGrid.innerHTML = '<div class="loading-catalog"><div class="mini-spinner"></div><span>Kütüphane yükleniyor...</span></div>';
+        fetch(url)
+            .then(r => { if (!r.ok) throw new Error('Sunucu hatası: ' + r.status); return r.json(); })
+            .then(movies => renderMovieCards(movies))
+            .catch(err => {
+                movieGrid.innerHTML = '<div class="empty-library"><i class="ph-fill ph-warning-circle" style="color:#ff4757;opacity:1;"></i><p>Kütüphane yüklenemedi.</p></div>';
+            });
+    }
+
+    function renderMovieCards(movies) {
+        if (!movies || movies.length === 0) {
+            movieGrid.innerHTML = '<div class="empty-library"><i class="ph-duotone ph-film-reel"></i><p>Kütüphanede hiç film yok</p></div>';
+            return;
+        }
+        movieGrid.innerHTML = '';
+        movies.forEach(movie => {
+            const card = document.createElement('div');
+            card.className = 'movie-card';
+            card.dataset.url = movie.url;
+            const safeTitle = (movie.title || '').replace(/"/g, '&quot;');
+            const noPosterHtml = '<div class="poster-fallback"><i class="ph-fill ph-film-slate"></i><span>' + safeTitle + '</span></div>';
+            const posterHtml = movie.poster
+                ? '<img src="' + movie.poster + '" alt="' + safeTitle + '" loading="lazy" onerror="this.outerHTML=this.dataset.fb" data-fb="' + noPosterHtml.replace(/"/g, '&quot;') + '">'
+                : noPosterHtml;
+            card.innerHTML =
+                '<div class="movie-poster">' +
+                    posterHtml +
+                    '<div class="movie-overlay"><div class="play-btn-overlay"><i class="ph-fill ph-play"></i></div></div>' +
+                '</div>' +
+                '<div class="movie-info">' +
+                    '<h4>' + (movie.title || 'İsimsiz Film') + '</h4>' +
+                    '<span>' + (movie.duration || '') + '</span>' +
+                '</div>';
+            card.addEventListener('click', () => selectFromLibrary(movie, card));
+            movieGrid.appendChild(card);
+        });
+    }
+
+    function selectFromLibrary(movie, cardEl) {
+        document.querySelectorAll('.movie-card').forEach(c => c.classList.remove('selected'));
+        cardEl.classList.add('selected');
+        mediaSelector.classList.add('hidden');
+        playerContainer.classList.remove('hidden');
+        switchToPlayer('native');
+        nativePlayerEl.src = movie.url;
+        playActiveVideo();
+        currentVideoState = { type: 'load_url', url: movie.url };
+        if (typeof localforage !== 'undefined') {
+            localforage.setItem('movie_state', { type: 'url', url: movie.url });
+        }
+        if (peerConnection && peerConnection.open) {
+            peerConnection.send(currentVideoState);
+            showToast('"' + movie.title + '" seçildi 🎬');
+        }
+        reactionsBar.classList.remove('hidden');
+    }
+
+    if (loadCatalogBtn) {
+        loadCatalogBtn.addEventListener('click', () => {
+            var url = catalogUrlInput.value.trim();
+            if (url) fetchCatalog(url);
+        });
+        catalogUrlInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') { var url = catalogUrlInput.value.trim(); if (url) fetchCatalog(url); }
+        });
+    }
+
+    // Auto-load saved catalog URL
+    var savedCatalogUrl = localStorage.getItem('catalog_url');
+    if (savedCatalogUrl && catalogUrlInput) {
+        catalogUrlInput.value = savedCatalogUrl;
     }
 
     // --- Login Logic ---
