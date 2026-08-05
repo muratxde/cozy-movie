@@ -258,13 +258,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function fetchAzureLibrary(baseUrl) {
         if (!baseUrl || !movieGrid) return;
-        currentAzureBaseUrl = baseUrl.replace(/\/$/, '');
+        currentAzureBaseUrl = baseUrl;
         localStorage.setItem('azure_storage_url', currentAzureBaseUrl);
         if (azureUrlInput) azureUrlInput.value = currentAzureBaseUrl;
         movieGrid.innerHTML = '<div class="loading-catalog"><div class="mini-spinner"></div><span>Kütüphane yükleniyor...</span></div>';
         if (movieCountBadge) movieCountBadge.classList.add('hidden');
 
-        fetch(currentAzureBaseUrl + '?restype=container&comp=list')
+        // Parse SAS Token URL correctly
+        let fetchUrl;
+        try {
+            let urlObj = new URL(currentAzureBaseUrl);
+            urlObj.searchParams.set('restype', 'container');
+            urlObj.searchParams.set('comp', 'list');
+            fetchUrl = urlObj.toString();
+        } catch(e) {
+            fetchUrl = currentAzureBaseUrl.replace(/\/$/, '') + '?restype=container&comp=list';
+        }
+
+        fetch(fetchUrl)
             .then(function(r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status + ' — Container erişimi "Container" mı?');
                 return r.text();
@@ -283,9 +294,21 @@ document.addEventListener('DOMContentLoaded', () => {
                         try { return encodeURIComponent(decodeURIComponent(p)); }
                         catch(e) { return encodeURIComponent(p); }
                     }).join('/');
+                    // Düzgün URL oluşturma (SAS token varsa korumak için)
+                    let videoUrl;
+                    try {
+                        let urlObj = new URL(currentAzureBaseUrl);
+                        // Path'in sonuna slash ekle ve dosya adını ekle
+                        let pathname = urlObj.pathname.replace(/\/$/, '') + '/' + encodedName;
+                        urlObj.pathname = pathname;
+                        videoUrl = urlObj.toString();
+                    } catch(e) {
+                        videoUrl = currentAzureBaseUrl.replace(/\/$/, '') + '/' + encodedName;
+                    }
+                    
                     videos.push({
                         title: name.replace(/\.[^.]+$/, '').replace(/[_\-]+/g, ' ').trim(),
-                        url: currentAzureBaseUrl + '/' + encodedName
+                        url: videoUrl
                     });
                 });
                 renderMovieCards(videos);
