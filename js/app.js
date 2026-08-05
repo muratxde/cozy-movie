@@ -340,17 +340,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         catch(e) { return encodeURIComponent(p); }
                     }).join('/');
                     
-                    // Düzgün URL oluşturma (SAS token varsa korumak için, restype ve comp'i silmek için)
+                    // Video URL: SAS token olmadan public URL kullan
+                    // (SAS srt=sc sadece container listing'e izin verir, blob erişimine vermez)
+                    // Container public olduğu için plain URL yeterli ve seeking de çalışır
                     let videoUrl;
                     try {
                         let urlObj = new URL(currentAzureBaseUrl);
-                        urlObj.searchParams.delete('restype');
-                        urlObj.searchParams.delete('comp');
-                        let pathname = urlObj.pathname.replace(/\/$/, '') + '/' + encodedName;
-                        urlObj.pathname = pathname;
-                        videoUrl = urlObj.toString();
+                        let basePublic = urlObj.origin + urlObj.pathname.replace(/\/$/, '');
+                        videoUrl = basePublic + '/' + encodedName;
                     } catch(e) {
-                        videoUrl = currentAzureBaseUrl.replace(/\/$/, '').split('?')[0] + '/' + encodedName;
+                        videoUrl = currentAzureBaseUrl.split('?')[0].replace(/\/$/, '') + '/' + encodedName;
                     }
                     
                     videos.push({
