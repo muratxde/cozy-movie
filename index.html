@@ -17,7 +17,7 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="css/style.css?v=2">
+    <link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
     <div class="background-animation"></div>
@@ -79,6 +79,9 @@
                             <i class="ph ph-magnifying-glass"></i>
                             <input type="text" id="librarySearchInput" placeholder="Film ara...">
                         </div>
+                        <button id="randomMovieBtn" class="lib-icon-btn" title="Rastgele Film Seç (Sürpriz Yap!)" style="color: #ff477e;">
+                            <i class="ph-bold ph-dice-three"></i>
+                        </button>
                         <button id="refreshLibraryBtn" class="lib-icon-btn" title="Yenile">
                             <i class="ph-bold ph-arrows-clockwise"></i>
                         </button>
@@ -144,17 +147,33 @@
                 <button id="cinemaModeBtn" class="primary-btn" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="ph-bold ph-lightbulb"></i> Işıkları Kapat
                 </button>
+                <button id="pipBtn" class="primary-btn" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" title="Ekran İçinde Ekran">
+                    <i class="ph-bold ph-picture-in-picture"></i>
+                </button>
+                <button id="lockBtn" class="primary-btn" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" title="Kumanda Kilidi (Sadece Ben Kontrol Edeyim)">
+                    <i class="ph-bold ph-lock-key-open"></i>
+                </button>
+
+                <button id="doodleBtn" class="primary-btn" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" title="Ekrana Çiz (Doodle)">
+                    <i class="ph-bold ph-pencil-simple"></i>
+                </button>
+                <button id="micBtn" class="primary-btn" style="background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;" title="Sesli Sohbet">
+                    <i class="ph-bold ph-microphone-slash"></i>
+                </button>
                 <button id="closeMovieBtn" class="primary-btn" style="background: rgba(255,71,87,0.2); color: #ff4757; border: 1px solid rgba(255,71,87,0.5); padding: 0.5rem 1rem; border-radius: 8px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 0.5rem;">
                     <i class="ph-bold ph-x"></i> Filmi Kapat / Yeni Seç
                 </button>
             </div>
             <div id="ambientLight" class="ambient-light"></div>
-            <div class="video-wrapper">
+            <div class="video-wrapper" style="position: relative;">
                 <video-js id="mainPlayer" class="video-js vjs-theme-cozy vjs-big-play-centered" controls preload="auto" width="100%" height="100%">
                 </video-js>
                 
                 <!-- Native Player (for local P2P chunks) -->
                 <video id="nativePlayer" class="hidden" controls style="width:100%; height:100%; object-fit: contain;"></video>
+                
+                <!-- Doodle Canvas -->
+                <canvas id="doodleCanvas" style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index: 50;"></canvas>
             </div>
             
             <!-- Seed Status for Host -->
@@ -195,6 +214,9 @@
             <div id="chatMessages" class="chat-messages">
                 <div class="chat-msg system">Bağlantı bekleniyor...</div>
             </div>
+            <div id="typingIndicator" class="typing-indicator hidden">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+            </div>
             <div class="chat-input-area">
                 <input type="text" id="chatInput" placeholder="Bir şeyler yaz..." disabled>
                 <button id="sendChatBtn" class="icon-btn primary" disabled><i class="ph-fill ph-paper-plane-right"></i></button>
@@ -212,6 +234,7 @@
     <script src="https://vjs.zencdn.net/8.10.0/video.min.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
-    <script src="js/app.js?v=3"></script>
+
+    <script src="js/app.js?v=11"></script>
 </body>
 </html>

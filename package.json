@@ -1,0 +1,17 @@
+{
+  "name": "cozy-movie-night",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^5.2.1",
+    "greenlock-express": "^4.0.3",
+    "peer": "^1.0.2"
+  }
+}

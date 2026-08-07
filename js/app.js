@@ -24,6 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const transferSpeedText = document.getElementById('transferSpeedText');
     const hostSeedStatus = document.getElementById('hostSeedStatus');
     const closeMovieBtn = document.getElementById('closeMovieBtn');
+    const pipBtn = document.getElementById('pipBtn');
+    const micBtn = document.getElementById('micBtn');
+    const lockBtn = document.getElementById('lockBtn');
+    const doodleBtn = document.getElementById('doodleBtn');
+    const doodleCanvas = document.getElementById('doodleCanvas');
+
     
     // Premium UI Elements
     const reactionsBar = document.getElementById('reactionsBar');
@@ -37,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadLibraryBtn = document.getElementById('loadLibraryBtn');
     const refreshLibraryBtn = document.getElementById('refreshLibraryBtn');
     const librarySearchInput = document.getElementById('librarySearchInput');
+    const randomMovieBtn = document.getElementById('randomMovieBtn');
     const movieGrid = document.getElementById('movieGrid');
     const movieCountBadge = document.getElementById('movieCountBadge');
 
@@ -48,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const chatInput = document.getElementById('chatInput');
     const sendChatBtn = document.getElementById('sendChatBtn');
     const chatUnreadBadge = document.getElementById('chatUnreadBadge');
+    const typingIndicator = document.getElementById('typingIndicator');
 
     let player; 
     let activePlayer = null; 
@@ -95,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function getActiveVideoElement() { return activePlayer === nativePlayerEl ? nativePlayerEl : player.tech().el(); }
     function getActiveCurrentTime() { return activePlayer === nativePlayerEl ? nativePlayerEl.currentTime : player.currentTime(); }
     function setActiveCurrentTime(time) { if (activePlayer === nativePlayerEl) nativePlayerEl.currentTime = time; else player.currentTime(time); }
+    function getCurrentVideoId() { return currentVideoState ? currentVideoState.url : (currentFile ? currentFile.name : null); }
     
     function playActiveVideo() {
         try {
@@ -135,24 +144,42 @@ document.addEventListener('DOMContentLoaded', () => {
     let ignoreNextPlay = false;
     let ignoreNextPause = false;
     let ignoreNextSeek = false;
+    let isHostLocked = false;
+    let hostLockOwner = null;
 
     function handlePlayEvent() {
+        if (ignoreNextPlay) { ignoreNextPlay = false; return; }
+        if (isHostLocked && hostLockOwner !== myId) {
+            showToast("Kumanda Kilitli! Sadece yönetici kontrol edebilir.");
+            ignoreNextPause = true;
+            getActiveVideoElement().pause();
+            return;
+        }
         ambientLight.classList.add('active');
         updateAmbientLight();
-        if (ignoreNextPlay) { ignoreNextPlay = false; return; }
-        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'play', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
+        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'play', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm', videoId: getCurrentVideoId() });
     }
     
     function handlePauseEvent() {
+        if (ignoreNextPause) { ignoreNextPause = false; return; }
+        if (isHostLocked && hostLockOwner !== myId) {
+            showToast("Kumanda Kilitli!");
+            ignoreNextPlay = true;
+            getActiveVideoElement().play();
+            return;
+        }
         ambientLight.classList.remove('active');
         cancelAnimationFrame(animationFrameId);
-        if (ignoreNextPause) { ignoreNextPause = false; return; }
-        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'pause', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
+        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'pause', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm', videoId: getCurrentVideoId() });
     }
     
     function handleSeekEvent() {
         if (ignoreNextSeek) { ignoreNextSeek = false; return; }
-        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'seek', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
+        if (isHostLocked && hostLockOwner !== myId) {
+            showToast("Kumanda Kilitli!");
+            return;
+        }
+        if (peerConnection && peerConnection.open) peerConnection.send({ type: 'seek', time: getActiveCurrentTime(), user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm', videoId: getCurrentVideoId() });
     }
 
     if (player) {
@@ -226,7 +253,27 @@ document.addEventListener('DOMContentLoaded', () => {
     function appendChatMessage(msg, type) {
         const div = document.createElement('div');
         div.className = `chat-msg ${type}`;
-        div.innerText = msg;
+        
+        if (type === 'self' || type === 'other') {
+            const isSelf = type === 'self';
+            // Determine name based on myId. If myId has 'murat', self is Murat, else Gülsüm.
+            const selfName = myId.includes('murat') ? 'Murat' : 'Gülsüm';
+            const otherName = selfName === 'Murat' ? 'Gülsüm' : 'Murat';
+            const msgName = isSelf ? selfName : otherName;
+            
+            const bgColor = msgName === 'Murat' ? '0984e3' : 'ff7675';
+            const avatarUrl = `https://ui-avatars.com/api/?name=${msgName}&background=${bgColor}&color=fff&rounded=true&size=32`;
+            
+            div.style.display = 'flex';
+            div.style.alignItems = 'center';
+            div.style.gap = '8px';
+            if (isSelf) div.style.flexDirection = 'row-reverse';
+            
+            div.innerHTML = `<img src="${avatarUrl}" style="width:24px; height:24px; border-radius:50%; flex-shrink:0;"> <span>${msg}</span>`;
+        } else {
+            div.innerText = msg;
+        }
+        
         chatMessages.appendChild(div);
         chatMessages.scrollTop = chatMessages.scrollHeight;
     }
@@ -239,15 +286,33 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     chatToggleBtn.addEventListener('click', toggleChat);
     closeChatBtn.addEventListener('click', () => chatContainer.classList.add('closed'));
+    let typingTimeout;
     function sendChatMessage() {
-        const text = chatInput.value.trim();
+        let text = chatInput.value.trim();
         if (!text || !peerConnection) return;
+        
+        // Auto convert <3 to ❤️
+        text = text.replace(/<3/g, '❤️');
+        
         appendChatMessage(text, 'self');
         peerConnection.send({ type: 'chat', text: text });
+        peerConnection.send({ type: 'stop_typing' });
         chatInput.value = '';
     }
     sendChatBtn.addEventListener('click', sendChatMessage);
-    chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendChatMessage(); });
+    chatInput.addEventListener('keypress', (e) => { 
+        if (e.key === 'Enter') {
+            sendChatMessage();
+        } else {
+            if (peerConnection && peerConnection.open) {
+                peerConnection.send({ type: 'typing' });
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    peerConnection.send({ type: 'stop_typing' });
+                }, 2000);
+            }
+        }
+    });
 
     // --- State Persistence (IndexedDB) ---
     function restoreMovieState() {
@@ -269,6 +334,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentVideoState = { type: 'load_url', url: state.url };
                     nativePlayerEl.src = state.url;
                     reactionsBar.classList.remove('hidden');
+                }
+                
+                if (state.time && state.time > 10) {
+                    setTimeout(() => {
+                        if (confirm(`En son bu filmi izliyordunuz. Kaldığınız yerden (${Math.floor(state.time / 60)}:${Math.floor(state.time % 60)}) devam etmek ister misiniz?`)) {
+                            setActiveCurrentTime(state.time);
+                            // playActiveVideo();
+                        }
+                    }, 500);
                 }
             }
         }).catch(e => console.error("IndexedDB okuma hatası:", e));
@@ -295,9 +369,197 @@ document.addEventListener('DOMContentLoaded', () => {
         closeMovieBtn.addEventListener('click', () => {
             clearMovieState();
             if (peerConnection && peerConnection.open) {
-                peerConnection.send({ type: 'close_movie' });
+                peerConnection.send({ type: 'close_movie', user: myId === 'film-gecemiz-murat' ? 'Murat' : 'Gülsüm' });
             }
         });
+    }
+
+    if (pipBtn) {
+        pipBtn.addEventListener('click', async () => {
+            try {
+                const videoEl = getActiveVideoElement();
+                if (videoEl !== document.pictureInPictureElement) {
+                    await videoEl.requestPictureInPicture();
+                } else {
+                    await document.exitPictureInPicture();
+                }
+            } catch (error) {
+                console.error("PiP error:", error);
+                showToast("Bu tarayıcı Ekran İçinde Ekran (PiP) desteklemiyor.");
+            }
+        });
+    }
+
+
+    if (lockBtn) {
+        lockBtn.addEventListener('click', () => {
+            isHostLocked = !isHostLocked;
+            hostLockOwner = isHostLocked ? myId : null;
+            
+            if (isHostLocked) {
+                lockBtn.innerHTML = '<i class="ph-bold ph-lock-key"></i>';
+                lockBtn.style.color = "#ff4757";
+                showToast("Kumanda Kilitlendi! Sadece siz kontrol edebilirsiniz.");
+            } else {
+                lockBtn.innerHTML = '<i class="ph-bold ph-lock-key-open"></i>';
+                lockBtn.style.color = "white";
+                showToast("Kumanda Kilidi Açıldı.");
+            }
+            
+            if (peerConnection && peerConnection.open) {
+                peerConnection.send({ type: 'host_lock', locked: isHostLocked, owner: hostLockOwner });
+            }
+        });
+    }
+
+    // --- Doodle (Çizim) Özelliği ---
+    let isDoodleMode = false;
+    let doodleCtx = null;
+    let isDrawing = false;
+    let lastX = 0; let lastY = 0;
+    let clearDoodleTimer = null;
+    
+    if (doodleCanvas) {
+        doodleCtx = doodleCanvas.getContext('2d');
+        const resizeCanvas = () => {
+            doodleCanvas.width = doodleCanvas.offsetWidth || 800;
+            doodleCanvas.height = doodleCanvas.offsetHeight || 450;
+        };
+        window.addEventListener('resize', resizeCanvas);
+        setTimeout(resizeCanvas, 500);
+    }
+    
+    if (doodleBtn) {
+        doodleBtn.addEventListener('click', () => {
+            isDoodleMode = !isDoodleMode;
+            if (isDoodleMode) {
+                doodleCanvas.style.pointerEvents = 'auto';
+                doodleBtn.style.color = "#ff477e";
+                doodleBtn.innerHTML = '<i class="ph-fill ph-pencil-simple"></i>';
+                showToast("Çizim Modu Açık! 🎨");
+            } else {
+                doodleCanvas.style.pointerEvents = 'none';
+                doodleBtn.style.color = "white";
+                doodleBtn.innerHTML = '<i class="ph-bold ph-pencil-simple"></i>';
+                showToast("Çizim Modu Kapatıldı.");
+            }
+        });
+    }
+
+    window.drawDoodleLine = function(x0, y0, x1, y1, color, emit) {
+        if (!doodleCtx) return;
+        doodleCtx.beginPath();
+        doodleCtx.moveTo(x0 * doodleCanvas.width, y0 * doodleCanvas.height);
+        doodleCtx.lineTo(x1 * doodleCanvas.width, y1 * doodleCanvas.height);
+        doodleCtx.strokeStyle = color;
+        doodleCtx.lineWidth = 4;
+        doodleCtx.lineCap = 'round';
+        doodleCtx.stroke();
+        doodleCtx.closePath();
+
+        clearTimeout(clearDoodleTimer);
+        clearDoodleTimer = setTimeout(() => {
+            if (doodleCtx) doodleCtx.clearRect(0, 0, doodleCanvas.width, doodleCanvas.height);
+        }, 5000);
+
+        if (!emit) return;
+        if (peerConnection && peerConnection.open) {
+            peerConnection.send({ type: 'doodle', x0: x0, y0: y0, x1: x1, y1: y1, color: color });
+        }
+    };
+
+    if (doodleCanvas) {
+        const getCoords = (e) => {
+            const rect = doodleCanvas.getBoundingClientRect();
+            if (e.touches && e.touches.length > 0) {
+                return { x: (e.touches[0].clientX - rect.left) / rect.width, y: (e.touches[0].clientY - rect.top) / rect.height };
+            }
+            return { x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height };
+        };
+
+        const onDown = (e) => {
+            if (!isDoodleMode) return;
+            isDrawing = true;
+            const pos = getCoords(e);
+            lastX = pos.x; lastY = pos.y;
+        };
+        const onMove = (e) => {
+            if (!isDrawing) return;
+            const pos = getCoords(e);
+            const myColor = myId.includes('murat') ? '#0984e3' : '#ff7675';
+            window.drawDoodleLine(lastX, lastY, pos.x, pos.y, myColor, true);
+            lastX = pos.x; lastY = pos.y;
+        };
+        const onUp = () => { isDrawing = false; };
+
+        doodleCanvas.addEventListener('mousedown', onDown);
+        doodleCanvas.addEventListener('mousemove', onMove);
+        doodleCanvas.addEventListener('mouseup', onUp);
+        doodleCanvas.addEventListener('mouseout', onUp);
+        
+        doodleCanvas.addEventListener('touchstart', onDown);
+        doodleCanvas.addEventListener('touchmove', onMove);
+        doodleCanvas.addEventListener('touchend', onUp);
+    }
+
+    let localAudioStream = null;
+    let currentVoiceCall = null;
+    let isMicMuted = true;
+
+
+    if (micBtn) {
+        micBtn.addEventListener('click', async () => {
+            if (!localAudioStream) {
+                try {
+                    localAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    localAudioStream.getAudioTracks()[0].enabled = false; // start muted logically
+                    
+                    // Call partner if connected
+                    if (peer && partnerId) {
+                        currentVoiceCall = peer.call(partnerId, localAudioStream);
+                        currentVoiceCall.on('stream', remoteStream => playRemoteStream(remoteStream));
+                    }
+                } catch(e) {
+                    showToast("Mikrofon izni alınamadı!");
+                    return;
+                }
+            }
+            
+            isMicMuted = !isMicMuted;
+            localAudioStream.getAudioTracks()[0].enabled = !isMicMuted;
+            
+            if (isMicMuted) {
+                micBtn.innerHTML = '<i class="ph-bold ph-microphone-slash"></i>';
+                micBtn.style.color = "white";
+                showToast("Mikrofon kapatıldı 🔇");
+            } else {
+                micBtn.innerHTML = '<i class="ph-bold ph-microphone"></i>';
+                micBtn.style.color = "#4cd137";
+                showToast("Mikrofon açıldı 🎤");
+            }
+        });
+    }
+
+    function playRemoteStream(stream) {
+        let mediaEl = document.getElementById('remoteAudioPlayer');
+        if (!mediaEl) {
+            mediaEl = document.createElement('video');
+            mediaEl.id = 'remoteAudioPlayer';
+            mediaEl.autoplay = true;
+            // PiP style floating video
+            mediaEl.style.position = 'fixed';
+            mediaEl.style.bottom = '80px';
+            mediaEl.style.right = '20px';
+            mediaEl.style.width = '120px';
+            mediaEl.style.height = '120px';
+            mediaEl.style.borderRadius = '50%';
+            mediaEl.style.objectFit = 'cover';
+            mediaEl.style.border = '3px solid #ff477e';
+            mediaEl.style.zIndex = '9999';
+            mediaEl.style.boxShadow = '0 10px 20px rgba(0,0,0,0.5)';
+            document.body.appendChild(mediaEl);
+        }
+        mediaEl.srcObject = stream;
     }
 
     // --- Film Kütüphanesi (Azure Blob Auto-List) ---
@@ -452,6 +714,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (randomMovieBtn) {
+        randomMovieBtn.addEventListener('click', function() {
+            const cards = document.querySelectorAll('.movie-card');
+            if (cards.length > 0) {
+                const randomIndex = Math.floor(Math.random() * cards.length);
+                const selectedCard = cards[randomIndex];
+                // Scroll to the card smoothly
+                selectedCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Simulate click after a tiny delay for effect
+                setTimeout(() => { selectedCard.click(); }, 300);
+            }
+        });
+    }
+
     // Auto-fill saved Azure URL
     if (azureUrlInput && currentAzureBaseUrl) azureUrlInput.value = currentAzureBaseUrl;
 
@@ -496,7 +772,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- P2P Logic ---
     function initPeer() {
         try {
-            peer = new Peer(myId, { config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+            peer = new Peer(myId, { 
+                host: 'gulsummurat.me', 
+                port: 443, 
+                path: '/peerjs',
+                secure: true,
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } 
+            });
+            
+            peer.on('call', call => {
+                call.answer(localAudioStream || undefined); // Answer with local stream if available
+                currentVoiceCall = call;
+                call.on('stream', remoteStream => playRemoteStream(remoteStream));
+            });
         } catch(e) {
             alert("Bağlantı motoru başlatılamadı!");
             return;
@@ -549,8 +837,10 @@ document.addEventListener('DOMContentLoaded', () => {
             sendChatBtn.disabled = false;
             appendChatMessage("Bağlantı kuruldu! Birlikte film izlemeye hazırsınız.", 'system');
             
+
+            
             // Sync controls state instantly
-            peerConnection.send({ type: 'sync_controls', time: getActiveCurrentTime(), paused: isVideoPaused() });
+            peerConnection.send({ type: 'sync_controls', time: getActiveCurrentTime(), paused: isVideoPaused(), videoId: getCurrentVideoId() });
             
             if (currentFile) {
                 startFileTransfer(currentFile);
@@ -567,13 +857,30 @@ document.addEventListener('DOMContentLoaded', () => {
         
         peerConnection.on('data', handleSyncData);
         
+        let autoSyncInterval;
         peerConnection.on('close', () => {
             connectionStatus.className = 'status-badge disconnected';
             statusText.innerText = 'Bağlantı Koptu! Aranıyor...';
             peerConnection = null;
+            if (autoSyncInterval) clearInterval(autoSyncInterval);
             // Restart polling
             connectInterval = setInterval(attemptConnection, 3000);
         });
+        
+        // Auto-Sync heartbeat every 3 seconds
+        autoSyncInterval = setInterval(() => {
+            if (peerConnection && peerConnection.open && !isVideoPaused()) {
+                peerConnection.send({ type: 'sync_time', time: getActiveCurrentTime(), videoId: getCurrentVideoId() });
+            }
+            // Periodically save state for 'Continue Watching' feature
+            if (typeof localforage !== 'undefined' && getCurrentVideoId()) {
+                if (currentFile) {
+                    localforage.setItem('movie_state', { type: 'file', blob: currentFile, name: currentFile.name, size: currentFile.size, time: getActiveCurrentTime() });
+                } else if (currentVideoState) {
+                    localforage.setItem('movie_state', { type: 'url', url: currentVideoState.url, time: getActiveCurrentTime() });
+                }
+            }
+        }, 3000);
     }
 
     function switchToPlayer(type) {
@@ -636,15 +943,57 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function handleSyncData(data) {
+        if (isHostLocked && hostLockOwner === myId && ['play', 'pause', 'seek', 'sync_time', 'sync_controls'].includes(data.type)) {
+            // I am the host, ignore incoming controls from partner
+            return;
+        }
+        
         isSyncing = true;
         try {
-            if (data.type === 'chat') {
+            if (data.type === 'doodle') {
+                if (typeof window.drawDoodleLine === 'function') {
+                    window.drawDoodleLine(data.x0, data.y0, data.x1, data.y1, data.color, false);
+                }
+            }
+            else if (data.type === 'host_lock') {
+                isHostLocked = data.locked;
+                hostLockOwner = data.owner;
+                if (isHostLocked && hostLockOwner !== myId) {
+                    showToast("Kumanda karşı taraf tarafından kilitlendi! Kontrol artık onda.");
+                    if (lockBtn) {
+                        lockBtn.innerHTML = '<i class="ph-bold ph-lock-key"></i>';
+                        lockBtn.style.color = "#ff4757";
+                    }
+                } else if (!isHostLocked) {
+                    showToast("Kumanda kilidi açıldı!");
+                    if (lockBtn) {
+                        lockBtn.innerHTML = '<i class="ph-bold ph-lock-key-open"></i>';
+                        lockBtn.style.color = "white";
+                    }
+                }
+            }
+            else if (data.type === 'chat') {
                 appendChatMessage(data.text, 'other');
                 if (chatContainer.classList.contains('closed')) chatUnreadBadge.classList.remove('hidden');
+                typingIndicator.classList.add('hidden');
+            }
+            else if (data.type === 'typing') {
+                typingIndicator.classList.remove('hidden');
+            }
+            else if (data.type === 'stop_typing') {
+                typingIndicator.classList.add('hidden');
             }
             else if (data.type === 'sync_controls') {
+                if (data.videoId && data.videoId !== getCurrentVideoId()) return; // Strict match
                 setActiveCurrentTime(data.time);
                 if (!data.paused) playActiveVideo();
+            }
+            else if (data.type === 'sync_time') {
+                if (data.videoId && data.videoId !== getCurrentVideoId()) return; // Strict match
+                if (!isVideoPaused() && Math.abs(getActiveCurrentTime() - data.time) > 1.5) {
+                    ignoreNextSeek = true;
+                    setActiveCurrentTime(data.time);
+                }
             }
             else if (data.type === 'file_transfer_start') {
                 // Check if we ALREADY have this exact file loaded from IndexedDB!
@@ -741,8 +1090,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             else if (data.type === 'close_movie') {
                 clearMovieState();
+                if (data.user) showToast(data.user + ' filmi kapattı, lütfen yeni film seçin.');
             }
             else if (data.type === 'play') {
+                if (data.videoId && data.videoId !== getCurrentVideoId()) return; // Strict match
                 if (activePlayer === nativePlayerEl && nativePlayerEl.readyState < 2) {
                     // Video henüz yüklenmedi, canplay tetiklenince oynatılacak
                     pendingSync = { type: 'play', time: data.time };
@@ -757,6 +1108,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.user) showToast(data.user + ' filmi başlattı ▶️');
             }
             else if (data.type === 'pause') {
+                if (data.videoId && data.videoId !== getCurrentVideoId()) return; // Strict match
                 if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
                     ignoreNextSeek = true;
                     setActiveCurrentTime(data.time);
@@ -766,6 +1118,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (data.user) showToast(data.user + ' filmi durdurdu ⏸️');
             }
             else if (data.type === 'seek') {
+                if (data.videoId && data.videoId !== getCurrentVideoId()) return; // Strict match
                 if (Math.abs(getActiveCurrentTime() - data.time) > 1) {
                     ignoreNextSeek = true;
                     setActiveCurrentTime(data.time);
@@ -838,18 +1191,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 1. Reactions
     function createFloatingEmoji(emoji, isMine) {
-        const span = document.createElement('span');
-        span.className = 'floating-emoji';
-        span.innerText = emoji;
-        // Random horizontal position
-        const randomX = Math.random() * 60 + 20; // 20% to 80%
-        span.style.left = `${randomX}%`;
-        
-        floatingEmojisContainer.appendChild(span);
-        
-        setTimeout(() => {
-            span.remove();
-        }, 3000);
+        // Burst 3-5 emojis
+        const count = Math.floor(Math.random() * 3) + 3;
+        for (let i = 0; i < count; i++) {
+            setTimeout(() => {
+                const span = document.createElement('span');
+                span.className = 'floating-emoji';
+                span.innerText = emoji;
+                // Random horizontal position
+                const randomX = Math.random() * 80 + 10; // 10% to 90%
+                span.style.left = `${randomX}%`;
+                
+                // Add some random size and animation duration
+                const randomSize = Math.random() * 2 + 1.5; // 1.5rem to 3.5rem
+                span.style.fontSize = `${randomSize}rem`;
+                const randomDuration = Math.random() * 2 + 2; // 2s to 4s
+                span.style.animationDuration = `${randomDuration}s`;
+                
+                floatingEmojisContainer.appendChild(span);
+                
+                setTimeout(() => {
+                    span.remove();
+                }, randomDuration * 1000);
+            }, i * 200); // Stagger the burst
+        }
     }
 
     document.querySelectorAll('.reaction-btn').forEach(btn => {
@@ -927,5 +1292,35 @@ document.addEventListener('DOMContentLoaded', () => {
             subtitleInput.value = '';
         });
     }
+
+    // Sürükle Bırak Altyazı Desteği (Drag & Drop)
+    document.body.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+    });
+
+    document.body.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            const file = e.dataTransfer.files[0];
+            if (file.name.endsWith('.srt') || file.name.endsWith('.vtt')) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const text = ev.target.result;
+                    loadSubtitleFromText(text, file.name);
+                    showToast("Sürüklenen Altyazı yüklendi 📝");
+                    
+                    if (peerConnection && peerConnection.open) {
+                        peerConnection.send({ type: 'load_subtitle', text: text, name: file.name });
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                showToast("Lütfen sadece .srt veya .vtt formatında altyazı dosyası bırakın.");
+            }
+        }
+    });
 
 });
